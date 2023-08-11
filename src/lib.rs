@@ -24,10 +24,6 @@ where
     executor_handle().spawn(fut)
 }
 
-pub fn resumed() -> Subscription<'static> {
-    executor_handle().resumed()
-}
-
 pub fn suspended() -> Subscription<'static> {
     executor_handle().suspended()
 }

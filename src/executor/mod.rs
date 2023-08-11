@@ -7,19 +7,18 @@
 use std::sync::OnceLock;
 
 use async_task::{Runnable, Task};
-use flume::{Receiver, Sender};
 use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
 use futures_lite::Future;
 use instant::Duration;
 use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
-    event::{Event, StartCause},
+    event::Event,
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
 };
 
 use crate::{
-    event::{AsyncEventTarget, Subscription},
+    event::{AsyncEventTarget, EventFnFuture, EventSource, Subscription},
     timer,
 };
 
@@ -40,43 +39,31 @@ pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExecutorEvent {
-    Wake,
+    PollTask(Runnable),
+    TimerAdded,
     Exit(i32),
 }
 
 struct Executor {
     handle: &'static ExecutorHandle,
-    task_recv: Receiver<Runnable>,
 }
 
 impl Executor {
-    fn poll_tasks(&self, target: &EventLoopTarget) {
-        let drain = self.task_recv.drain();
-        if drain.len() == 0 {
-            return;
-        }
-
-        EL_TARGET.set(target, move || {
-            for runnable in drain {
-                runnable.run();
-            }
-        });
-    }
-
     fn on_event(
         &mut self,
         event: Event<ExecutorEvent>,
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
+        dbg!(&event);
         match event {
-            Event::UserEvent(ExecutorEvent::Wake) => {}
+            Event::UserEvent(ExecutorEvent::TimerAdded) => {}
 
-            Event::NewEvents(cause) => {
-                if let StartCause::Init = cause {
-                    self.poll_tasks(target);
-                }
+            Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
+                EL_TARGET.set(&target, move || runnable.run());
+            }
 
+            Event::NewEvents(_) => {
                 self.handle.timer.check_expirations();
             }
 
@@ -84,13 +71,9 @@ impl Executor {
                 *control_flow = ControlFlow::ExitWithCode(code);
             }
 
-            Event::MainEventsCleared => {
-                self.poll_tasks(target);
-            }
+            Event::MainEventsCleared => {}
 
-            Event::RedrawRequested(id) => {
-
-            }
+            Event::RedrawRequested(id) => {}
 
             Event::RedrawEventsCleared => {
                 if let Some(time) = self.handle.timer.next_expiration() {
@@ -106,13 +89,11 @@ impl Executor {
             }
 
             Event::Resumed => {
-                self.handle.resumed.dispatch();
-                self.poll_tasks(target);
+                self.handle.resumed.dispatch(&mut ());
             }
 
             Event::Suspended => {
                 self.handle.suspended.dispatch();
-                self.poll_tasks(target);
             }
 
             _ => {}
@@ -123,23 +104,21 @@ impl Executor {
 #[derive(Debug)]
 pub struct ExecutorHandle {
     proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
-    task_sender: Sender<Runnable>,
 
     timer: TimerService,
 
-    resumed: AsyncEventTarget,
+    resumed: EventSource<()>,
     suspended: AsyncEventTarget,
 }
 
 impl ExecutorHandle {
-    fn new(proxy: EventLoopProxy<ExecutorEvent>, task_sender: Sender<Runnable>) -> Self {
+    fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
         Self {
             proxy: Mutex::new(proxy),
-            task_sender,
 
-            timer: timer::create_service(),
+            timer,
 
-            resumed: AsyncEventTarget::new(),
+            resumed: EventSource::new(),
             suspended: AsyncEventTarget::new(),
         }
     }
@@ -152,8 +131,11 @@ impl ExecutorHandle {
         futures_lite::future::pending().await
     }
 
-    pub fn resumed(&self) -> Subscription {
-        self.resumed.subscribe()
+    pub fn resumed<F: FnMut(&mut ()) -> Option<T> + Send, T>(
+        &self,
+        listener: F,
+    ) -> EventFnFuture<F, (), T> {
+        self.resumed.listen(listener)
     }
 
     pub fn suspended(&self) -> Subscription {
@@ -165,18 +147,18 @@ impl ExecutorHandle {
 
         self.proxy
             .lock()
-            .send_event(ExecutorEvent::Wake)
+            .send_event(ExecutorEvent::TimerAdded)
             .unwrap();
 
         fut
     }
 
-    pub fn deadline(&self, timestamp: u64) -> TimerFuture {
+    pub fn wait_deadline(&self, timestamp: u64) -> TimerFuture {
         let fut = self.timer.deadline(timestamp);
 
         self.proxy
             .lock()
-            .send_event(ExecutorEvent::Wake)
+            .send_event(ExecutorEvent::TimerAdded)
             .unwrap();
 
         fut
@@ -199,18 +181,21 @@ impl ExecutorHandle {
     where
         Fut: Future,
     {
-        let (runnable, task) = {
-            let proxy = Mutex::new(self.proxy.lock().clone());
-            let task_sender = self.task_sender.clone();
-
-            async_task::spawn_unchecked(fut, move |runnable| {
-                let _ = task_sender.send(runnable);
-                let _ = proxy.lock().send_event(ExecutorEvent::Wake);
-            })
-        };
+        let (runnable, task) = self.spawn_raw_unchecked(fut);
         runnable.schedule();
 
         task
+    }
+
+    unsafe fn spawn_raw_unchecked<Fut>(&self, fut: Fut) -> (Runnable, Task<Fut::Output>)
+    where
+        Fut: Future,
+    {
+        let proxy = Mutex::new(self.proxy.lock().clone());
+
+        async_task::spawn_unchecked(fut, move |runnable| {
+            let _ = proxy.lock().send_event(ExecutorEvent::PollTask(runnable));
+        })
     }
 }
 
@@ -219,22 +204,23 @@ pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
 
     let proxy = event_loop.create_proxy();
 
-    let (task_sender, task_recv) = flume::unbounded();
-
-    let handle = ExecutorHandle::new(proxy.clone(), task_sender);
-    HANDLE.set(handle).expect("This cannot be happen");
+    HANDLE
+        .set(ExecutorHandle::new(proxy.clone(), timer::create_service()))
+        .expect("This cannot be happen");
 
     let handle = HANDLE.get().unwrap();
 
-    unsafe {
-        handle.spawn_unchecked(async move {
+    let mut executor = Executor { handle };
+
+    let (runnable, task) = unsafe {
+        handle.spawn_raw_unchecked(async move {
             main.await;
             proxy.send_event(ExecutorEvent::Exit(0)).unwrap();
         })
-    }
-    .detach();
+    };
+    task.detach();
 
-    let mut executor = Executor { handle, task_recv };
+    EL_TARGET.set(&event_loop, move || runnable.run());
 
     event_loop
         .run(move |event, target, control_flow| executor.on_event(event, target, control_flow));

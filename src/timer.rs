@@ -4,7 +4,7 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use futures_intrusive::timer::{TimerService, Clock};
+use futures_intrusive::timer::{Clock, TimerService};
 
 pub use futures_intrusive::timer::TimerFuture;
 use instant::Duration;
@@ -27,6 +27,6 @@ pub fn wait(delay: Duration) -> TimerFuture<'static> {
     executor_handle().wait(delay)
 }
 
-pub fn deadline(timestamp: u64) -> TimerFuture<'static> {
-    executor_handle().deadline(timestamp)
+pub fn wait_deadline(timestamp: u64) -> TimerFuture<'static> {
+    executor_handle().wait_deadline(timestamp)
 }

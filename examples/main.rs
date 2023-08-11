@@ -5,13 +5,19 @@
  */
 
 use instant::Duration;
-use wm::{spawn_ui_task, timer::wait, window::create_window, resumed};
+use wm::{executor::executor_handle, spawn_ui_task, timer::wait, window::create_window};
 
 fn main() {
     wm::run(async {
         println!("Hello async winit world!");
 
-        resumed().await;
+        executor_handle()
+            .resumed(|_| {
+                println!("Called on resume!");
+                Some(())
+            })
+            .await;
+        println!("resume event done");
 
         let _window = create_window().unwrap();
 

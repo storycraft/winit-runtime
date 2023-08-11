@@ -4,11 +4,11 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use crate::executor::with_eventloop_target;
+use crate::{event::AsyncEventTarget, executor::with_eventloop_target};
 
 use winit::{
     error::OsError,
-    window::{Window as WinitWindow, WindowBuilder},
+    window::{Window as WinitWindow, WindowBuilder, WindowId},
 };
 
 pub fn build_window(builder: WindowBuilder) -> Result<WinitWindow, OsError> {
@@ -28,4 +28,12 @@ impl Window {
     pub fn init(winit: WinitWindow) -> Self {
         Self { winit }
     }
+}
+
+#[derive(Debug)]
+pub struct WindowEventTarget {
+    id: WindowId,
+
+    redraw_requested: AsyncEventTarget,
+    close_requested: AsyncEventTarget,
 }
