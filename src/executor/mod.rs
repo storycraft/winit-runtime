@@ -13,14 +13,11 @@ use instant::Duration;
 use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
-    event::Event,
+    event::{Event, DeviceId, DeviceEvent},
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
 };
 
-use crate::{
-    event::{AsyncEventTarget, EventFnFuture, EventSource, Subscription},
-    timer,
-};
+use crate::{event::EventSource, timer};
 
 pub type EventLoopTarget = EventLoopWindowTarget<ExecutorEvent>;
 
@@ -88,12 +85,16 @@ impl Executor {
                 }
             }
 
+            Event::DeviceEvent { device_id, event } => {
+                self.handle.device.dispatch(&mut (device_id, event));
+            }
+
             Event::Resumed => {
                 self.handle.resumed.dispatch(&mut ());
             }
 
             Event::Suspended => {
-                self.handle.suspended.dispatch();
+                self.handle.suspended.dispatch(&mut ());
             }
 
             _ => {}
@@ -107,8 +108,10 @@ pub struct ExecutorHandle {
 
     timer: TimerService,
 
-    resumed: EventSource<()>,
-    suspended: AsyncEventTarget,
+    pub resumed: EventSource<()>,
+    pub suspended: EventSource<()>,
+
+    pub device: EventSource<(DeviceId, DeviceEvent)>,
 }
 
 impl ExecutorHandle {
@@ -119,7 +122,9 @@ impl ExecutorHandle {
             timer,
 
             resumed: EventSource::new(),
-            suspended: AsyncEventTarget::new(),
+            suspended: EventSource::new(),
+
+            device: EventSource::new(),
         }
     }
 
@@ -129,17 +134,6 @@ impl ExecutorHandle {
             .send_event(ExecutorEvent::Exit(code))
             .unwrap();
         futures_lite::future::pending().await
-    }
-
-    pub fn resumed<F: FnMut(&mut ()) -> Option<T> + Send, T>(
-        &self,
-        listener: F,
-    ) -> EventFnFuture<F, (), T> {
-        self.resumed.listen(listener)
-    }
-
-    pub fn suspended(&self) -> Subscription {
-        self.suspended.subscribe()
     }
 
     pub fn wait(&self, delay: Duration) -> TimerFuture {

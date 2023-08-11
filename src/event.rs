@@ -79,7 +79,7 @@ impl<E: ?Sized> EventSource<E> {
         }
     }
 
-    pub fn listen<F: FnMut(&mut E) -> Option<T> + Send, T>(
+    pub fn on<F: FnMut(&mut E) -> Option<T> + Send, T>(
         &self,
         listener: F,
     ) -> EventFnFuture<F, E, T> {
@@ -103,6 +103,7 @@ type ListenerData<E> = dyn pin_list::Types<
 >;
 
 #[pin_project::pin_project(PinnedDrop)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct EventFnFuture<'a, F, E: ?Sized, T> {
     source: &'a EventSource<E>,
 
@@ -118,14 +119,20 @@ impl<'a, E: ?Sized, F: FnMut(&mut E) -> Option<T>, T> Future for EventFnFuture<'
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let mut this = self.project();
 
         let mut lock = this.source.list.lock();
 
         if let Data::Done(item) = this.data_sealed {
             Poll::Ready(item.take().unwrap())
         } else {
-            if this.node.is_initial() {
+            if let Some(node) = this.node.as_mut().initialized_mut() {
+                let (ref mut waker, _) = node.protected_mut(&mut lock).unwrap();
+
+                if !waker.will_wake(cx.waker()) {
+                    *waker = cx.waker().clone();
+                }
+            } else {
                 lock.push_back(
                     this.node,
                     (cx.waker().clone(), unsafe {

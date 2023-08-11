@@ -4,7 +4,6 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use event::Subscription;
 use executor::executor_handle;
 use futures_lite::Future;
 use task::Task;
@@ -22,10 +21,6 @@ where
     Fut::Output: Send,
 {
     executor_handle().spawn(fut)
-}
-
-pub fn suspended() -> Subscription<'static> {
-    executor_handle().suspended()
 }
 
 pub async fn exit(code: i32) -> ! {
