@@ -125,15 +125,17 @@ impl<'a, E: ?Sized, F: FnMut(&mut E) -> Option<T>, T> Future for EventFnFuture<'
         if let Data::Done(item) = this.data_sealed {
             Poll::Ready(item.take().unwrap())
         } else {
-            lock.push_back(
-                this.node,
-                (cx.waker().clone(), unsafe {
-                    mem::transmute::<NonNull<dyn PollData<E>>, NonNull<dyn PollData<E>>>(
-                        NonNull::from(this.data_sealed),
-                    )
-                }),
-                (),
-            );
+            if this.node.is_initial() {
+                lock.push_back(
+                    this.node,
+                    (cx.waker().clone(), unsafe {
+                        mem::transmute::<NonNull<dyn PollData<E>>, NonNull<dyn PollData<E>>>(
+                            NonNull::from(this.data_sealed),
+                        )
+                    }),
+                    (),
+                );
+            }
 
             Poll::Pending
         }
