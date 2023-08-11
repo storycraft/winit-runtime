@@ -52,7 +52,6 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        dbg!(&event);
         match event {
             Event::UserEvent(ExecutorEvent::TimerAdded) => {}
 

@@ -5,7 +5,6 @@
  */
 
 use std::{
-    marker::PhantomData,
     mem,
     pin::Pin,
     ptr::NonNull,
@@ -79,16 +78,32 @@ impl<E: ?Sized> EventSource<E> {
         }
     }
 
-    pub fn on<F: FnMut(&mut E) -> Option<T> + Send, T>(
-        &self,
-        listener: F,
-    ) -> EventFnFuture<F, E, T> {
+    pub fn on<F: FnMut(&mut E) -> Option<()> + Send>(&self, listener: F) -> EventFnFuture<F, E> {
         EventFnFuture {
             source: self,
-            data_sealed: Data::Listening(listener),
+            data_sealed: Data {
+                listener,
+                done: false,
+            },
             node: pin_list::Node::new(),
-            _phantom: PhantomData,
         }
+    }
+
+    pub async fn once<F: FnMut(&mut E) -> Option<T> + Send, T: Send>(&self, mut listener: F) -> T {
+        let mut res = None;
+
+        self.on(|event| {
+            if res.is_some() {
+                return None;
+            }
+
+            listener(event).map(|output| {
+                res = Some(output);
+            })
+        })
+        .await;
+
+        res.unwrap()
     }
 }
 
@@ -104,27 +119,25 @@ type ListenerData<E> = dyn pin_list::Types<
 
 #[pin_project::pin_project(PinnedDrop)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct EventFnFuture<'a, F, E: ?Sized, T> {
+pub struct EventFnFuture<'a, F, E: ?Sized> {
     source: &'a EventSource<E>,
 
-    data_sealed: Data<F, T>,
+    data_sealed: Data<F>,
 
     #[pin]
     node: pin_list::Node<ListenerData<E>>,
-
-    _phantom: PhantomData<fn() -> T>,
 }
 
-impl<'a, E: ?Sized, F: FnMut(&mut E) -> Option<T>, T> Future for EventFnFuture<'a, F, E, T> {
-    type Output = T;
+impl<'a, E: ?Sized, F: FnMut(&mut E) -> Option<()>> Future for EventFnFuture<'a, F, E> {
+    type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         let mut lock = this.source.list.lock();
 
-        if let Data::Done(item) = this.data_sealed {
-            Poll::Ready(item.take().unwrap())
+        if this.data_sealed.done {
+            Poll::Ready(())
         } else {
             if let Some(node) = this.node.as_mut().initialized_mut() {
                 let (ref mut waker, _) = node.protected_mut(&mut lock).unwrap();
@@ -150,7 +163,7 @@ impl<'a, E: ?Sized, F: FnMut(&mut E) -> Option<T>, T> Future for EventFnFuture<'
 }
 
 #[pinned_drop]
-impl<F, E: ?Sized, T> PinnedDrop for EventFnFuture<'_, F, E, T> {
+impl<F, E: ?Sized> PinnedDrop for EventFnFuture<'_, F, E> {
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
         let node = match this.node.initialized_mut() {
@@ -164,31 +177,21 @@ impl<F, E: ?Sized, T> PinnedDrop for EventFnFuture<'_, F, E, T> {
     }
 }
 
-enum Data<F, T> {
-    Listening(F),
-    Done(Option<T>),
+struct Data<F> {
+    listener: F,
+    done: bool,
 }
 
 trait PollData<E: ?Sized> {
     fn poll(&mut self, event: &mut E) -> bool;
 }
 
-impl<E: ?Sized, F: FnMut(&mut E) -> Option<T>, T> PollData<E> for Data<F, T> {
+impl<E: ?Sized, F: FnMut(&mut E) -> Option<()>> PollData<E> for Data<F> {
     fn poll(&mut self, event: &mut E) -> bool {
-        match mem::replace(self, Self::Done(None)) {
-            Data::Listening(mut data) => {
-                if let Some(output) = data(event) {
-                    *self = Self::Done(Some(output));
-                    true
-                } else {
-                    *self = Self::Listening(data);
-                    false
-                }
-            }
-
-            Data::Done(_) => {
-                panic!("Called poll after completion")
-            }
+        if (self.listener)(event).is_some() && !self.done {
+            self.done = true;
         }
+
+        self.done
     }
 }
