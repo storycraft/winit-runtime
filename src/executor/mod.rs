@@ -85,15 +85,15 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                self.handle.device.dispatch(&mut (device_id, event));
+                self.handle.device.emit(&mut (device_id, event));
             }
 
             Event::Resumed => {
-                self.handle.resumed.dispatch(&mut ());
+                self.handle.resumed.emit(&mut ());
             }
 
             Event::Suspended => {
-                self.handle.suspended.dispatch(&mut ());
+                self.handle.suspended.emit(&mut ());
             }
 
             _ => {}

@@ -29,7 +29,7 @@ impl<E: ?Sized> EventSource<E> {
         }
     }
 
-    pub fn dispatch(&self, event: &mut E) {
+    pub fn emit(&self, event: &mut E) {
         let mut list = self.list.lock();
 
         let mut cursor = list.cursor_front_mut();
