@@ -12,7 +12,8 @@ fn main() {
         println!("Hello async winit world!");
 
         executor_handle()
-            .resumed(|_| {
+            .resumed
+            .on(|_| {
                 println!("Called on resume!");
                 Some(())
             })
@@ -38,6 +39,19 @@ fn main() {
             println!("Sub task2 done");
         })
         .detach();
+
+        loop {
+            executor_handle()
+                .device
+                .on(|(_, event)| {
+                    dbg!(event);
+
+                    Some(())
+                })
+                .await;
+
+            println!("loop");
+        }
 
         wait(Duration::from_secs(3)).await;
         println!("Main task done");

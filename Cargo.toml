@@ -12,7 +12,6 @@ scopeguard = "1.2.0"
 futures-lite = "1.13.0"
 scoped-tls-hkt = "0.1.2"
 pin-project = "1.1.3"
-tokio = { version = "1.30.0", features = ["sync"] }
 futures-intrusive = "0.5.0"
 instant = "0.1.12"
 flume = "0.10.14"
