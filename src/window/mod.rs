@@ -4,7 +4,7 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use crate::{event::AsyncEventTarget, executor::with_eventloop_target};
+use crate::executor::with_eventloop_target;
 
 use winit::{
     error::OsError,
@@ -33,7 +33,4 @@ impl Window {
 #[derive(Debug)]
 pub struct WindowEventTarget {
     id: WindowId,
-
-    redraw_requested: AsyncEventTarget,
-    close_requested: AsyncEventTarget,
 }

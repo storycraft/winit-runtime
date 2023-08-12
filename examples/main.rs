@@ -52,8 +52,5 @@ fn main() {
 
             println!("loop");
         }
-
-        wait(Duration::from_secs(3)).await;
-        println!("Main task done");
     })
 }
