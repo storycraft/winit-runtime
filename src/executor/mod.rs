@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use async_task::{Runnable, Task};
 use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
 use futures_lite::Future;
+use higher_kinded_types::ForLt;
 use instant::Duration;
 use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
@@ -85,15 +86,15 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                self.handle.device.emit(&mut (device_id, event));
+                self.handle.device.emit((device_id, &event));
             }
 
             Event::Resumed => {
-                self.handle.resumed.emit(&mut ());
+                self.handle.resumed.emit(());
             }
 
             Event::Suspended => {
-                self.handle.suspended.emit(&mut ());
+                self.handle.suspended.emit(());
             }
 
             _ => {}
@@ -101,16 +102,15 @@ impl Executor {
     }
 }
 
-#[derive(Debug)]
 pub struct ExecutorHandle {
     proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
 
     timer: TimerService,
 
-    pub resumed: EventSource<()>,
-    pub suspended: EventSource<()>,
+    pub resumed: EventSource<ForLt!(())>,
+    pub suspended: EventSource<ForLt!(())>,
 
-    pub device: EventSource<(DeviceId, DeviceEvent)>,
+    pub device: EventSource<ForLt!((DeviceId, &DeviceEvent))>,
 }
 
 impl ExecutorHandle {
@@ -197,9 +197,11 @@ pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
 
     let proxy = event_loop.create_proxy();
 
-    HANDLE
-        .set(ExecutorHandle::new(proxy.clone(), timer::create_service()))
-        .expect("This cannot be happen");
+    if HANDLE
+        .set(ExecutorHandle::new(proxy.clone(), timer::create_service())).is_err() {
+            panic!("This cannot be happen");
+        }
+    
 
     let handle = HANDLE.get().unwrap();
 
