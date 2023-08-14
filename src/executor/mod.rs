@@ -13,7 +13,7 @@ use instant::Duration;
 use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
-    event::{Event, DeviceId, DeviceEvent},
+    event::{DeviceEvent, DeviceId, Event},
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
 };
 
@@ -52,11 +52,11 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        match event {
+        EL_TARGET.set(&target, move || match event {
             Event::UserEvent(ExecutorEvent::TimerAdded) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
-                EL_TARGET.set(&target, move || runnable.run());
+                runnable.run();
             }
 
             Event::NewEvents(_) => {
@@ -97,7 +97,7 @@ impl Executor {
             }
 
             _ => {}
-        }
+        });
     }
 }
 
