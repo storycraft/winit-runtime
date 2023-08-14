@@ -45,7 +45,7 @@ fn main() {
         .detach();
 
         loop {
-            // Wait for next device events. The closure is always FnMut since there can be multiple events before waking the task.
+            // Wait for next device events. The closure is always FnMut since there can be multiple events before the task polled.
             executor_handle()
                 .device
                 .on(|(_, event)| {
