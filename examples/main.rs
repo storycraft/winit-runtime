@@ -12,18 +12,17 @@ fn main() {
         println!("Hello async winit world!");
 
         // wait for one resume event to be done
-        executor_handle()
+        let _window = executor_handle()
             .resumed
             .once(|_| {
                 // Run on Resume event is being called.
                 println!("Called on resume!");
 
-                Some(())
+                // create window, actually they can be called anytime after Resume event
+                Some(create_window().unwrap())
             })
             .await;
         println!("resume event done");
-
-        let _window = create_window().unwrap();
 
         // Spawn another task which run on eventloop concurrently
         spawn_ui_task(async move {
