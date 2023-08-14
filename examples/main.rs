@@ -11,20 +11,26 @@ fn main() {
     wm::run(async {
         println!("Hello async winit world!");
 
-        executor_handle()
+        // wait for one resume event to be done
+        let _window = executor_handle()
             .resumed
-            .on(|_| {
+            .once(|_| {
+                // Run on Resume event is being called, not after event.
+                // Because surface creation, destroy must be done in Resume, Suspended event.
+
+                // Put window creation code here.
                 println!("Called on resume!");
-                Some(())
+
+                Some(create_window().unwrap())
             })
             .await;
         println!("resume event done");
 
-        let _window = create_window().unwrap();
-
+        // Spawn another task which run on eventloop concurrently
         spawn_ui_task(async move {
             println!("Sub task1 started");
 
+            // wait for 2 secs (Async timer implemented on winit eventloop)
             wait(Duration::from_secs(2)).await;
 
             println!("Sub task1 done");
@@ -41,6 +47,7 @@ fn main() {
         .detach();
 
         loop {
+            // Wait for next device events. The closure is always FnMut since there can be multiple events before waking the task.
             executor_handle()
                 .device
                 .on(|(_, event)| {

@@ -146,6 +146,7 @@ struct Data<F> {
     done: bool,
 }
 
+
 trait PollData<E: ?Sized> {
     fn poll(&mut self, event: &mut E) -> bool;
 }
