@@ -12,19 +12,18 @@ fn main() {
         println!("Hello async winit world!");
 
         // wait for one resume event to be done
-        let _window = executor_handle()
+        executor_handle()
             .resumed
             .once(|_| {
-                // Run on Resume event is being called, not after event.
-                // Because surface creation, destroy must be done in Resume, Suspended event.
-
-                // Put window creation code here.
+                // Run on Resume event is being called.
                 println!("Called on resume!");
 
-                Some(create_window().unwrap())
+                Some(())
             })
             .await;
         println!("resume event done");
+
+        let _window = create_window().unwrap();
 
         // Spawn another task which run on eventloop concurrently
         spawn_ui_task(async move {
