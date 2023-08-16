@@ -47,9 +47,9 @@ fn main() {
         loop {
             // Wait for next device events. The closure is always FnMut since there can be multiple events before the task polled.
             executor_handle()
-                .device
-                .on(|(_, event)| {
-                    dbg!(event);
+                .window
+                .on(|(id, event)| {
+                    println!("window event id: {id:?} event: {event:?}");
 
                     Some(())
                 })

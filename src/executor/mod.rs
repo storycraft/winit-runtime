@@ -14,8 +14,8 @@ use instant::Duration;
 use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
-    event::{DeviceEvent, DeviceId, Event},
-    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
+    event::{DeviceEvent, DeviceId, Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget}, window::WindowId,
 };
 
 use crate::{event::EventSource, timer};
@@ -53,7 +53,7 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        EL_TARGET.set(&target, move || match event {
+        EL_TARGET.set(target, move || match event {
             Event::UserEvent(ExecutorEvent::TimerAdded) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
@@ -70,7 +70,9 @@ impl Executor {
 
             Event::MainEventsCleared => {}
 
-            Event::RedrawRequested(id) => {}
+            Event::RedrawRequested(id) => {
+                self.handle.redraw_requested.emit(id);
+            }
 
             Event::RedrawEventsCleared => {
                 if let Some(time) = self.handle.timer.next_expiration() {
@@ -86,7 +88,11 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                self.handle.device.emit((device_id, &event));
+                self.handle.device.emit((device_id, event));
+            }
+
+            Event::WindowEvent { window_id, event } => {
+                self.handle.window.emit((window_id, event));
             }
 
             Event::Resumed => {
@@ -110,7 +116,10 @@ pub struct ExecutorHandle {
     pub resumed: EventSource<ForLt!(())>,
     pub suspended: EventSource<ForLt!(())>,
 
-    pub device: EventSource<ForLt!((DeviceId, &DeviceEvent))>,
+    pub device: EventSource<ForLt!((DeviceId, DeviceEvent))>,
+    pub window: EventSource<ForLt!((WindowId, WindowEvent<'_>))>,
+
+    pub redraw_requested: EventSource<ForLt!(WindowId)>,
 }
 
 impl ExecutorHandle {
@@ -124,6 +133,9 @@ impl ExecutorHandle {
             suspended: EventSource::new(),
 
             device: EventSource::new(),
+            window: EventSource::new(),
+
+            redraw_requested: EventSource::new(),
         }
     }
 

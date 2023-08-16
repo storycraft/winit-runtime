@@ -5,6 +5,7 @@
  */
 
 use std::{
+    marker::PhantomPinned,
     mem,
     pin::Pin,
     ptr::NonNull,
@@ -19,8 +20,8 @@ use pin_project::pinned_drop;
 use pin_list::{id::Unchecked, PinList};
 
 #[derive(Debug)]
-pub struct EventSource<T> {
-    list: Mutex<PinList<ListenerData<T>>>,
+pub struct EventSource<T: ForLifetime> {
+    list: Mutex<PinList<NodeTypes<T>>>,
 }
 
 impl<T: ForLifetime> EventSource<T> {
@@ -30,31 +31,36 @@ impl<T: ForLifetime> EventSource<T> {
         }
     }
 
-    pub fn emit<'a>(&self, event: T::Of<'a>) where T::Of<'a>: Clone {
+    pub fn emit<'a>(&self, mut event: T::Of<'a>) {
         let mut list = self.list.lock();
 
         let mut cursor = list.cursor_front_mut();
-        while let Some((ref waker, ref mut data)) = cursor.protected_mut() {
-            if (unsafe { data.as_mut() }).poll(event.clone()) {
-                waker.wake_by_ref();
+        while let Some(node) = cursor.protected_mut() {
+            // SAFETY: Closure is pinned and the pointer valid
+            if unsafe { node.poll(&mut event) } {
+                node.waker.wake_by_ref();
             }
 
             cursor.move_next();
         }
     }
 
-    pub fn on<F: FnMut(T::Of<'_>) -> Option<()> + Send>(&self, listener: F) -> EventFnFuture<F, T> {
+    pub fn on<F: FnMut(&mut T::Of<'_>) -> Option<()> + Send>(
+        &self,
+        listener: F,
+    ) -> EventFnFuture<F, T> {
         EventFnFuture {
             source: self,
-            data_sealed: Data {
-                listener,
-                done: false,
-            },
+            listener,
             node: pin_list::Node::new(),
+            _pinned: PhantomPinned,
         }
     }
 
-    pub async fn once<F: FnMut(T::Of<'_>) -> Option<R> + Send, R: Send>(&self, mut listener: F) -> R {
+    pub async fn once<F: FnMut(&mut T::Of<'_>) -> Option<R> + Send, R: Send>(
+        &self,
+        mut listener: F,
+    ) -> R {
         let mut res = None;
 
         self.on(|event| {
@@ -72,63 +78,69 @@ impl<T: ForLifetime> EventSource<T> {
     }
 }
 
-unsafe impl<T> Send for EventSource<T> {}
-unsafe impl<T> Sync for EventSource<T> {}
+// SAFETY: Closure requires to be Send
+unsafe impl<'a, T: ForLifetime> Send for EventSource<T> where T::Of<'a>: Send {}
 
-type ListenerData<T> = dyn pin_list::Types<
+// SAFETY: Closure requires to be Send and Sync is achieved by mutex
+unsafe impl<'a, T: ForLifetime> Sync for EventSource<T> where T::Of<'a>: Send {}
+
+type NodeTypes<T> = dyn pin_list::Types<
     Id = pin_list::id::Unchecked,
-    Protected = (Waker, NonNull<dyn PollData<T>>),
+    Protected = ListenerItem<T>,
     Unprotected = (),
     Removed = (),
 >;
 
 #[pin_project::pin_project(PinnedDrop)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct EventFnFuture<'a, F, T> {
+pub struct EventFnFuture<'a, F, T: ForLifetime> {
     source: &'a EventSource<T>,
 
-    data_sealed: Data<F>,
+    listener: F,
 
     #[pin]
-    node: pin_list::Node<ListenerData<T>>,
+    node: pin_list::Node<NodeTypes<T>>,
+
+    _pinned: PhantomPinned,
 }
 
-impl<'a, T: ForLifetime, F: FnMut(T::Of<'_>) -> Option<()>> Future for EventFnFuture<'a, F, T> {
+impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()>> Future
+    for EventFnFuture<'a, F, T>
+{
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        let mut lock = this.source.list.lock();
+        let mut list = this.source.list.lock();
 
-        if this.data_sealed.done {
-            Poll::Ready(())
-        } else {
-            if let Some(node) = this.node.as_mut().initialized_mut() {
-                let (ref mut waker, _) = node.protected_mut(&mut lock).unwrap();
-
-                if !waker.will_wake(cx.waker()) {
-                    *waker = cx.waker().clone();
-                }
-            } else {
-                lock.push_back(
-                    this.node,
-                    (cx.waker().clone(), unsafe {
-                        mem::transmute::<NonNull<dyn PollData<T>>, NonNull<dyn PollData<T>>>(
-                            NonNull::from(this.data_sealed),
-                        )
-                    }),
-                    (),
-                );
-            }
-
-            Poll::Pending
+        if this.node.as_mut().initialized_mut().is_none() {
+            list.push_back(
+                this.node.as_mut(),
+                ListenerItem::new(cx.waker().clone(), this.listener),
+                (),
+            );
         }
+
+        let node = {
+            let initialized = this.node.initialized_mut().unwrap();
+            initialized.protected_mut(&mut list).unwrap()
+        };
+
+        if node.done {
+            return Poll::Ready(());
+        }
+
+        if !node.waker.will_wake(cx.waker()) {
+            node.update_waker(cx.waker().clone());
+        }
+
+        Poll::Pending
     }
 }
 
 #[pinned_drop]
-impl<F, T> PinnedDrop for EventFnFuture<'_, F, T> {
+impl<F, T: ForLifetime> PinnedDrop for EventFnFuture<'_, F, T> {
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
         let node = match this.node.initialized_mut() {
@@ -142,19 +154,35 @@ impl<F, T> PinnedDrop for EventFnFuture<'_, F, T> {
     }
 }
 
-struct Data<F> {
-    listener: F,
+struct ListenerItem<T: ForLifetime> {
     done: bool,
+    waker: Waker,
+    closure_ptr: NonNull<dyn FnMut(&mut T::Of<'_>) -> Option<()>>,
 }
 
+impl<T: ForLifetime> ListenerItem<T> {
+    pub fn new(waker: Waker, closure_ptr: &impl FnMut(&mut T::Of<'_>) -> Option<()>) -> Self {
+        Self {
+            done: false,
+            waker,
 
-trait PollData<T: ForLifetime> {
-    fn poll(&mut self, event: T::Of<'_>) -> bool;
-}
+            // Safety: See ListenerItem::poll for safety requirement
+            closure_ptr: unsafe {
+                mem::transmute::<NonNull<dyn FnMut(&mut T::Of<'_>) -> Option<()>>, NonNull<_>>(
+                    NonNull::from(closure_ptr),
+                )
+            },
+        }
+    }
 
-impl<T: ForLifetime, F: FnMut(T::Of<'_>) -> Option<()>> PollData<T> for Data<F> {
-    fn poll(&mut self, event: T::Of<'_>) -> bool {
-        if (self.listener)(event).is_some() && !self.done {
+    pub fn update_waker(&mut self, waker: Waker) {
+        self.waker = waker;
+    }
+
+    /// # Safety
+    /// Calling this method is only safe if pointer of closure is valid
+    pub unsafe fn poll(&mut self, event: &mut T::Of<'_>) -> bool {
+        if self.closure_ptr.as_mut()(event).is_some() && !self.done {
             self.done = true;
         }
 
