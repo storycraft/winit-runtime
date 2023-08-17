@@ -112,16 +112,16 @@ impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()> + Send> Future
 
         let mut list = this.source.list.lock();
 
-        if this.node.as_mut().initialized_mut().is_none() {
-            list.push_back(
-                this.node.as_mut(),
-                ListenerItem::new(cx.waker().clone(), this.listener),
-                (),
-            );
-        }
-
         let node = {
-            let initialized = this.node.initialized_mut().unwrap();
+            let initialized = match this.node.as_mut().initialized_mut() {
+                Some(initialized) => initialized,
+                None => list.push_back(
+                    this.node,
+                    ListenerItem::new(cx.waker().clone(), this.listener),
+                    (),
+                ),
+            };
+
             initialized.protected_mut(&mut list).unwrap()
         };
 
