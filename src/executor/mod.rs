@@ -4,21 +4,22 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
+pub mod event;
+pub mod handle;
+
 use std::sync::OnceLock;
 
-use async_task::{Runnable, Task};
-use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
 use futures_lite::Future;
-use higher_kinded_types::ForLt;
 use instant::Duration;
-use parking_lot::Mutex;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
-    event::{DeviceEvent, DeviceId, Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget}, window::WindowId,
+    event::Event,
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
 
-use crate::{event::EventSource, timer};
+use crate::timer;
+
+use self::{event::ExecutorEvent, handle::ExecutorHandle};
 
 pub type EventLoopTarget = EventLoopWindowTarget<ExecutorEvent>;
 
@@ -32,14 +33,6 @@ scoped_thread_local!(static EL_TARGET: EventLoopTarget);
 
 pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
     EL_TARGET.with(func)
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum ExecutorEvent {
-    PollTask(Runnable),
-    TimerAdded,
-    Exit(i32),
 }
 
 struct Executor {
@@ -108,112 +101,17 @@ impl Executor {
     }
 }
 
-pub struct ExecutorHandle {
-    proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
-
-    timer: TimerService,
-
-    pub resumed: EventSource<ForLt!(())>,
-    pub suspended: EventSource<ForLt!(())>,
-
-    pub device: EventSource<ForLt!((DeviceId, DeviceEvent))>,
-    pub window: EventSource<ForLt!((WindowId, WindowEvent<'_>))>,
-
-    pub redraw_requested: EventSource<ForLt!(WindowId)>,
-}
-
-impl ExecutorHandle {
-    fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
-        Self {
-            proxy: Mutex::new(proxy),
-
-            timer,
-
-            resumed: EventSource::new(),
-            suspended: EventSource::new(),
-
-            device: EventSource::new(),
-            window: EventSource::new(),
-
-            redraw_requested: EventSource::new(),
-        }
-    }
-
-    pub async fn exit(&self, code: i32) -> ! {
-        self.proxy
-            .lock()
-            .send_event(ExecutorEvent::Exit(code))
-            .unwrap();
-        futures_lite::future::pending().await
-    }
-
-    pub fn wait(&self, delay: Duration) -> TimerFuture {
-        let fut = self.timer.delay(delay);
-
-        self.proxy
-            .lock()
-            .send_event(ExecutorEvent::TimerAdded)
-            .unwrap();
-
-        fut
-    }
-
-    pub fn wait_deadline(&self, timestamp: u64) -> TimerFuture {
-        let fut = self.timer.deadline(timestamp);
-
-        self.proxy
-            .lock()
-            .send_event(ExecutorEvent::TimerAdded)
-            .unwrap();
-
-        fut
-    }
-
-    pub fn spawn<Fut>(&self, fut: Fut) -> Task<Fut::Output>
-    where
-        Fut: Future + Send + 'static,
-        Fut::Output: Send + 'static,
-    {
-        // SAFETY: Future and its output is both Send and 'static
-        unsafe { self.spawn_unchecked(fut) }
-    }
-
-    /// # Safety
-    /// If [`Future`] and its output is
-    /// 1. not [`Send`]: Must be called on main thread.
-    /// 2. non 'static: References to Future must outlive.
-    pub unsafe fn spawn_unchecked<Fut>(&self, fut: Fut) -> Task<Fut::Output>
-    where
-        Fut: Future,
-    {
-        let (runnable, task) = self.spawn_raw_unchecked(fut);
-        runnable.schedule();
-
-        task
-    }
-
-    unsafe fn spawn_raw_unchecked<Fut>(&self, fut: Fut) -> (Runnable, Task<Fut::Output>)
-    where
-        Fut: Future,
-    {
-        let proxy = Mutex::new(self.proxy.lock().clone());
-
-        async_task::spawn_unchecked(fut, move |runnable| {
-            let _ = proxy.lock().send_event(ExecutorEvent::PollTask(runnable));
-        })
-    }
-}
-
 pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
     let event_loop = EventLoopBuilder::with_user_event().build();
 
     let proxy = event_loop.create_proxy();
 
     if HANDLE
-        .set(ExecutorHandle::new(proxy.clone(), timer::create_service())).is_err() {
-            panic!("This cannot be happen");
-        }
-    
+        .set(ExecutorHandle::new(proxy.clone(), timer::create_service()))
+        .is_err()
+    {
+        panic!("This cannot be happen");
+    }
 
     let handle = HANDLE.get().unwrap();
 
