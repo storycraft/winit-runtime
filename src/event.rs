@@ -5,6 +5,7 @@
  */
 
 use std::{
+    fmt::Debug,
     marker::PhantomPinned,
     mem,
     pin::Pin,
@@ -19,7 +20,6 @@ use pin_project::pinned_drop;
 use pin_list::id::Unchecked;
 use unique::Unique;
 
-#[derive(Debug)]
 pub struct EventSource<T: ForLifetime> {
     list: Mutex<PinList<T>>,
 }
@@ -77,6 +77,14 @@ impl<T: ForLifetime> EventSource<T> {
         .await;
 
         res.unwrap()
+    }
+}
+
+impl<T: ForLifetime> Debug for EventSource<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventSource")
+            .field("list", &self.list)
+            .finish()
     }
 }
 

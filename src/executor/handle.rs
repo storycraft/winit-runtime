@@ -20,6 +20,7 @@ use crate::event::EventSource;
 
 use super::event::ExecutorEvent;
 
+#[derive(Debug)]
 pub struct ExecutorHandle {
     proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
 

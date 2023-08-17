@@ -35,6 +35,7 @@ pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
     EL_TARGET.with(func)
 }
 
+#[derive(Debug)]
 struct Executor {
     handle: &'static ExecutorHandle,
 }
