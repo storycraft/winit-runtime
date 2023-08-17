@@ -8,29 +8,13 @@ use crate::executor::with_eventloop_target;
 
 use winit::{
     error::OsError,
-    window::{Window as WinitWindow, WindowBuilder, WindowId},
+    window::{Window, WindowBuilder},
 };
 
-pub fn build_window(builder: WindowBuilder) -> Result<WinitWindow, OsError> {
+pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
     with_eventloop_target(move |target| builder.build(target))
 }
 
-pub fn create_window() -> Result<WinitWindow, OsError> {
+pub fn create_window() -> Result<Window, OsError> {
     build_window(WindowBuilder::new())
-}
-
-#[derive(Debug)]
-pub struct Window {
-    winit: WinitWindow,
-}
-
-impl Window {
-    pub fn init(winit: WinitWindow) -> Self {
-        Self { winit }
-    }
-}
-
-#[derive(Debug)]
-pub struct WindowEventTarget {
-    id: WindowId,
 }

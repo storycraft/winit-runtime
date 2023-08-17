@@ -5,15 +5,14 @@
  */
 
 use instant::Duration;
-use wm::{executor::executor_handle, spawn_ui_task, timer::wait, window::create_window};
+use wm::{resumed, spawn_ui_task, timer::wait, window, window::create_window};
 
 fn main() {
     wm::run(async {
         println!("Hello async winit world!");
 
         // wait for one resume event to be done
-        let _window = executor_handle()
-            .resumed
+        let _window = resumed()
             .once(|_| {
                 // Run on Resume event is being called.
                 println!("Called on resume!");
@@ -46,8 +45,7 @@ fn main() {
 
         loop {
             // Wait for next device events. The closure is always FnMut since there can be multiple events before the task polled.
-            executor_handle()
-                .window
+            window()
                 .on(|(id, event)| {
                     println!("window event id: {id:?} event: {event:?}");
 
