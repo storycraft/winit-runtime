@@ -19,4 +19,4 @@ higher-kinded-types = "0.1.1"
 unique = "0.9.1"
 
 [dev-dependencies]
-tokio = { vresion = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt", "macros"] }
