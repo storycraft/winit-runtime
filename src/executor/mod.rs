@@ -118,6 +118,7 @@ pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
 
     let mut executor = Executor { handle };
 
+    // SAFETY: EventLoop created on same function, closure does not need to be Send
     let (runnable, task) = unsafe {
         handle.spawn_raw_unchecked(async move {
             main.await;
