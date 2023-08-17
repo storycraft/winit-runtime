@@ -5,7 +5,7 @@
  */
 
 use event::EventSource;
-use executor::executor_handle;
+use executor::{executor_handle, with_eventloop_target};
 use futures_lite::Future;
 use higher_kinded_types::ForLt;
 use task::Task;
@@ -13,10 +13,9 @@ use task::Task;
 pub mod event;
 pub mod executor;
 pub mod timer;
-pub mod window;
 
 pub use async_task as task;
-use winit::{window::WindowId, event::{WindowEvent, DeviceId, DeviceEvent}};
+use winit::{window::{WindowId, WindowBuilder, Window}, event::{WindowEvent, DeviceId, DeviceEvent}, error::OsError};
 
 pub fn spawn_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
@@ -49,6 +48,16 @@ pub fn suspended() -> &'static EventSource<ForLt!(())> {
 pub fn redraw_requested() -> &'static EventSource<ForLt!(WindowId)> {
     &executor_handle().redraw_requested
 }
+
+pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
+    with_eventloop_target(move |target| builder.build(target))
+}
+
+#[inline]
+pub fn create_window() -> Result<Window, OsError> {
+    build_window(WindowBuilder::new())
+}
+
 
 #[inline(always)]
 pub fn run(fut: impl Future<Output = ()> + 'static) -> ! {

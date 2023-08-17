@@ -5,7 +5,7 @@
  */
 
 use winit::event::WindowEvent;
-use wm::{window::create_window, resumed, window};
+use wm::{create_window, resumed, window};
 
 fn main() {
     wm::run(async {
