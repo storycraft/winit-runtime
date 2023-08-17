@@ -9,7 +9,7 @@ Experimental project for integrating winit's event loop to Rust's async ecosyste
 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently.
 
 ## Examples
-See `examples/main.rs`
+See `examples`
 
 ## License
 MIT
