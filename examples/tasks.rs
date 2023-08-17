@@ -3,11 +3,6 @@
  *
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
-/*
- * Created on Mon Aug 07 2023
- *
- * Copyright (c) storycraft. Licensed under the MIT Licence.
- */
 
 use instant::Duration;
 use wm::{spawn_ui_task, timer::wait};
