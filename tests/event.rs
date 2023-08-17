@@ -14,17 +14,23 @@ use wm::event::EventSource;
 async fn test_event_source() {
     let source: EventSource<ForLt!(())> = EventSource::new();
 
-    let listener = source.on(|_| {
-        println!("event");
-        Some(())
-    });
-    let mut listener = pin!(listener);
+    let mut called = 0;
 
-    poll_fn(|cx| {
-        let res = listener.as_mut().poll(cx);
-        source.emit(());
+    {
+        let listener = source.on(|_| {
+            called += 1;
+            Some(())
+        });
+        let mut listener = pin!(listener);
 
-        res
-    })
-    .await;
+        poll_fn(|cx| {
+            let res = listener.as_mut().poll(cx);
+            source.emit(());
+
+            res
+        })
+        .await;
+    }
+
+    assert_eq!(called, 2);
 }
