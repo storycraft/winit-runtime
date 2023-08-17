@@ -38,7 +38,9 @@ impl<T: ForLifetime> EventSource<T> {
         while let Some(node) = cursor.protected_mut() {
             // SAFETY: Closure is pinned and the pointer valid
             if unsafe { node.poll(&mut event) } {
-                node.waker.wake_by_ref();
+                if let Some(waker) = node.waker.take() {
+                    waker.wake();
+                }
             }
 
             cursor.move_next();
@@ -89,6 +91,7 @@ type PinList<T> = pin_list::PinList<NodeTypes<T>>;
 
 type Node<T> = pin_list::Node<NodeTypes<T>>;
 
+#[derive(Debug)]
 #[pin_project::pin_project(PinnedDrop)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct EventFnFuture<'a, F, T: ForLifetime> {
@@ -115,11 +118,7 @@ impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()> + Send> Future
         let node = {
             let initialized = match this.node.as_mut().initialized_mut() {
                 Some(initialized) => initialized,
-                None => list.push_back(
-                    this.node,
-                    ListenerItem::new(cx.waker().clone(), this.listener),
-                    (),
-                ),
+                None => list.push_back(this.node, ListenerItem::new(this.listener), ()),
             };
 
             initialized.protected_mut(&mut list).unwrap()
@@ -129,9 +128,7 @@ impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()> + Send> Future
             return Poll::Ready(());
         }
 
-        if !node.waker.will_wake(cx.waker()) {
-            node.update_waker(cx.waker().clone());
-        }
+        node.update_waker(cx.waker());
 
         Poll::Pending
     }
@@ -152,31 +149,35 @@ impl<F, T: ForLifetime> PinnedDrop for EventFnFuture<'_, F, T> {
     }
 }
 
+#[derive(Debug)]
 struct ListenerItem<T: ForLifetime> {
     done: bool,
-    waker: Waker,
-    closure_ptr: Unique<dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send>,
+    waker: Option<Waker>,
+    closure_ptr: Unique<dyn for<'a, 'b> FnMut(&'a mut T::Of<'b>) -> Option<()> + Send>,
 }
 
 impl<T: ForLifetime> ListenerItem<T> {
-    pub fn new<'a>(
-        waker: Waker,
-        closure_ptr: &'a mut (dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send),
-    ) -> Self
+    pub fn new<'a>(closure_ptr: &'a mut (dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send)) -> Self
     where
         T: 'a,
     {
         Self {
             done: false,
-            waker,
+            waker: None,
 
             // Safety: See ListenerItem::poll for safety requirement
             closure_ptr: unsafe { mem::transmute::<_, Unique<_>>(Unique::from(closure_ptr)) },
         }
     }
 
-    pub fn update_waker(&mut self, waker: Waker) {
-        self.waker = waker;
+    pub fn update_waker(&mut self, waker: &Waker) {
+        match self.waker {
+            Some(ref waker) if waker.will_wake(waker) => return,
+
+            _ => {
+                self.waker = Some(waker.clone());
+            }
+        }
     }
 
     /// # Safety
