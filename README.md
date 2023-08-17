@@ -5,7 +5,7 @@ Experimental project for integrating winit's event loop to Rust's async ecosyste
 
 ## Features
 1. Alloc free async timer.
-2. Zero cost event dispatch (in progress)
+2. Zero cost event dispatch
 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently.
 
 ## Examples
