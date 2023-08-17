@@ -8,7 +8,6 @@ use std::{
     marker::PhantomPinned,
     mem,
     pin::Pin,
-    ptr::NonNull,
     task::{Context, Poll, Waker},
 };
 
@@ -17,11 +16,12 @@ use higher_kinded_types::ForLifetime;
 use parking_lot::Mutex;
 use pin_project::pinned_drop;
 
-use pin_list::{id::Unchecked, PinList};
+use pin_list::id::Unchecked;
+use unique::Unique;
 
 #[derive(Debug)]
 pub struct EventSource<T: ForLifetime> {
-    list: Mutex<PinList<NodeTypes<T>>>,
+    list: Mutex<PinList<T>>,
 }
 
 impl<T: ForLifetime> EventSource<T> {
@@ -78,18 +78,16 @@ impl<T: ForLifetime> EventSource<T> {
     }
 }
 
-// SAFETY: Closure requires to be Send
-unsafe impl<'a, T: ForLifetime> Send for EventSource<T> where T::Of<'a>: Send {}
-
-// SAFETY: Closure requires to be Send and Sync is achieved by mutex
-unsafe impl<'a, T: ForLifetime> Sync for EventSource<T> where T::Of<'a>: Send {}
-
 type NodeTypes<T> = dyn pin_list::Types<
     Id = pin_list::id::Unchecked,
     Protected = ListenerItem<T>,
     Unprotected = (),
     Removed = (),
 >;
+
+type PinList<T> = pin_list::PinList<NodeTypes<T>>;
+
+type Node<T> = pin_list::Node<NodeTypes<T>>;
 
 #[pin_project::pin_project(PinnedDrop)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -99,12 +97,12 @@ pub struct EventFnFuture<'a, F, T: ForLifetime> {
     listener: F,
 
     #[pin]
-    node: pin_list::Node<NodeTypes<T>>,
+    node: Node<T>,
 
     _pinned: PhantomPinned,
 }
 
-impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()>> Future
+impl<'a, T: ForLifetime, F: FnMut(&mut T::Of<'_>) -> Option<()> + Send> Future
     for EventFnFuture<'a, F, T>
 {
     type Output = ();
@@ -157,21 +155,23 @@ impl<F, T: ForLifetime> PinnedDrop for EventFnFuture<'_, F, T> {
 struct ListenerItem<T: ForLifetime> {
     done: bool,
     waker: Waker,
-    closure_ptr: NonNull<dyn FnMut(&mut T::Of<'_>) -> Option<()>>,
+    closure_ptr: Unique<dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send>,
 }
 
 impl<T: ForLifetime> ListenerItem<T> {
-    pub fn new(waker: Waker, closure_ptr: &impl FnMut(&mut T::Of<'_>) -> Option<()>) -> Self {
+    pub fn new<'a>(
+        waker: Waker,
+        closure_ptr: &'a mut (dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send),
+    ) -> Self
+    where
+        T: 'a,
+    {
         Self {
             done: false,
             waker,
 
             // Safety: See ListenerItem::poll for safety requirement
-            closure_ptr: unsafe {
-                mem::transmute::<NonNull<dyn FnMut(&mut T::Of<'_>) -> Option<()>>, NonNull<_>>(
-                    NonNull::from(closure_ptr),
-                )
-            },
+            closure_ptr: unsafe { mem::transmute::<_, Unique<_>>(Unique::from(closure_ptr)) },
         }
     }
 
