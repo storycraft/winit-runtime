@@ -4,6 +4,13 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
+//! # wm: Async runtime over winit's eventloop
+//! 
+//! ## Features
+//! 1. Alloc free async timer
+//! 2. Zero cost event dispatching
+//! 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently
+
 use event::EventSource;
 use executor::{executor_handle, with_eventloop_target};
 use futures_lite::Future;
@@ -57,7 +64,6 @@ pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
 pub fn create_window() -> Result<Window, OsError> {
     build_window(WindowBuilder::new())
 }
-
 
 #[inline(always)]
 pub fn run(fut: impl Future<Output = ()> + 'static) -> ! {

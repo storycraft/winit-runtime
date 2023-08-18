@@ -1,8 +1,10 @@
 [package]
 name = "wm"
+description = "Async winit wrapper"
 version = "0.1.0"
 edition = "2021"
 authors = ["storycraft <storycraft@pancake.sh>"]
+repository = "https://github.com/storycraft/wm"
 
 [dependencies]
 parking_lot = "0.12.1"
