@@ -18,7 +18,7 @@ use winit::{
 
 use crate::event::EventSource;
 
-use super::event::ExecutorEvent;
+use super::{event::ExecutorEvent, EventLoopTarget};
 
 #[derive(Debug)]
 pub struct ExecutorHandle {
@@ -26,13 +26,13 @@ pub struct ExecutorHandle {
 
     pub(super) timer: TimerService,
 
-    pub resumed: EventSource<ForLt!(())>,
-    pub suspended: EventSource<ForLt!(())>,
+    pub resumed: EventSource<ForLt!((&EventLoopTarget))>,
+    pub suspended: EventSource<ForLt!((&EventLoopTarget))>,
 
-    pub device: EventSource<ForLt!((DeviceId, DeviceEvent))>,
-    pub window: EventSource<ForLt!((WindowId, WindowEvent<'_>))>,
+    pub device: EventSource<ForLt!((DeviceId, DeviceEvent, &EventLoopTarget))>,
+    pub window: EventSource<ForLt!((WindowId, WindowEvent<'_>, &EventLoopTarget))>,
 
-    pub redraw_requested: EventSource<ForLt!(WindowId)>,
+    pub redraw_requested: EventSource<ForLt!((WindowId, &EventLoopTarget))>,
 }
 
 impl ExecutorHandle {

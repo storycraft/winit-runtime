@@ -12,7 +12,7 @@
 //! 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently
 
 use event::EventSource;
-use executor::{executor_handle, with_eventloop_target};
+use executor::{executor_handle, with_eventloop_target, EventLoopTarget};
 use futures_lite::Future;
 use higher_kinded_types::ForLt;
 use task::Task;
@@ -36,23 +36,23 @@ pub async fn exit(code: i32) -> ! {
     executor_handle().exit(code).await
 }
 
-pub fn window() -> &'static EventSource<ForLt!((WindowId, WindowEvent<'_>))> {
+pub fn window() -> &'static EventSource<ForLt!((WindowId, WindowEvent<'_>, &EventLoopTarget))> {
     &executor_handle().window
 }
 
-pub fn device() -> &'static EventSource<ForLt!((DeviceId, DeviceEvent))> {
+pub fn device() -> &'static EventSource<ForLt!((DeviceId, DeviceEvent, &EventLoopTarget))> {
     &executor_handle().device
 }
 
-pub fn resumed() -> &'static EventSource<ForLt!(())> {
+pub fn resumed() -> &'static EventSource<ForLt!(&EventLoopTarget)> {
     &executor_handle().resumed
 }
 
-pub fn suspended() -> &'static EventSource<ForLt!(())> {
+pub fn suspended() -> &'static EventSource<ForLt!(&EventLoopTarget)> {
     &executor_handle().suspended
 }
 
-pub fn redraw_requested() -> &'static EventSource<ForLt!(WindowId)> {
+pub fn redraw_requested() -> &'static EventSource<ForLt!((WindowId, &EventLoopTarget))> {
     &executor_handle().redraw_requested
 }
 

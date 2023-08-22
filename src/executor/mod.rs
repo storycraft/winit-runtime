@@ -47,11 +47,13 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        EL_TARGET.set(target, move || match event {
+        match event {
             Event::UserEvent(ExecutorEvent::TimerAdded) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
-                runnable.run();
+                EL_TARGET.set(target, move || {
+                    runnable.run();
+                });
             }
 
             Event::NewEvents(_) => {
@@ -65,7 +67,7 @@ impl Executor {
             Event::MainEventsCleared => {}
 
             Event::RedrawRequested(id) => {
-                self.handle.redraw_requested.emit(id);
+                self.handle.redraw_requested.emit((id, target));
             }
 
             Event::RedrawEventsCleared => {
@@ -82,23 +84,28 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                self.handle.device.emit((device_id, event));
+                self.handle.device.emit((device_id, event, target));
             }
 
-            Event::WindowEvent { window_id, event } => {
-                self.handle.window.emit((window_id, event));
+            Event::WindowEvent {
+                window_id,
+                event,
+            } => {
+                self.handle
+                    .window
+                    .emit((window_id, event, target));
             }
 
             Event::Resumed => {
-                self.handle.resumed.emit(());
+                self.handle.resumed.emit(target);
             }
 
             Event::Suspended => {
-                self.handle.suspended.emit(());
+                self.handle.suspended.emit(target);
             }
 
             _ => {}
-        });
+        }
     }
 }
 
