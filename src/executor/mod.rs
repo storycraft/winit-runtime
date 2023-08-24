@@ -17,7 +17,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
 
-use crate::{timer, redraw_requested, device, window, resumed, suspended};
+use crate::{device, redraw_requested, resumed, suspended, timer, window};
 
 use self::{event::ExecutorEvent, handle::ExecutorHandle};
 
@@ -47,13 +47,11 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        match event {
+        EL_TARGET.set(target, move || match event {
             Event::UserEvent(ExecutorEvent::Wake) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
-                EL_TARGET.set(target, move || {
-                    runnable.run();
-                });
+                runnable.run();
             }
 
             Event::NewEvents(_) => {
@@ -67,7 +65,7 @@ impl Executor {
             Event::MainEventsCleared => {}
 
             Event::RedrawRequested(id) => {
-                redraw_requested().emit((id, target));
+                redraw_requested().emit(id);
             }
 
             Event::RedrawEventsCleared => {
@@ -84,27 +82,23 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                device().emit((device_id, event, target));
+                device().emit((device_id, event));
             }
 
-            Event::WindowEvent {
-                window_id,
-                event,
-            } => {
-                window()
-                    .emit((window_id, event, target));
+            Event::WindowEvent { window_id, event } => {
+                window().emit((window_id, event));
             }
 
             Event::Resumed => {
-                resumed().emit(target);
+                resumed().emit(());
             }
 
             Event::Suspended => {
-                suspended().emit(target);
+                suspended().emit(());
             }
 
             _ => {}
-        }
+        });
     }
 }
 

@@ -46,15 +46,15 @@ macro_rules! define_event {
     };
 }
 
-define_event!(pub window: (WindowId, WindowEvent<'_>, &EventLoopTarget));
+define_event!(pub window: (WindowId, WindowEvent<'_>));
 
-define_event!(pub device: (DeviceId, DeviceEvent, &EventLoopTarget));
+define_event!(pub device: (DeviceId, DeviceEvent));
 
-define_event!(pub resumed: (&EventLoopTarget));
+define_event!(pub resumed: ());
 
-define_event!(pub suspended: (&EventLoopTarget));
+define_event!(pub suspended: ());
 
-define_event!(pub redraw_requested: (WindowId, &EventLoopTarget));
+define_event!(pub redraw_requested: WindowId);
 
 pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
     with_eventloop_target(move |target| builder.build(target))

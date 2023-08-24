@@ -4,25 +4,26 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use winit::{event::WindowEvent, window::Window};
-use wm::{resumed, window};
+use winit::event::WindowEvent;
+use wm::{create_window, resumed, window};
 
 fn main() {
     wm::run(async {
         // wait for next resume event
         let _window = resumed()
-            .once(|target|
+            .once(||
                 // create window, on resume event
-                Some(Window::new(target).unwrap())
-            )
+                Some(create_window().unwrap()))
             .await;
 
-        window().once(|(_, event, _)| {
-            if let WindowEvent::CloseRequested = event {
-                Some(())
-            } else {
-                None
-            }
-        }).await;
+        window()
+            .once(|(_, event)| {
+                if let WindowEvent::CloseRequested = event {
+                    Some(())
+                } else {
+                    None
+                }
+            })
+            .await;
     })
 }
