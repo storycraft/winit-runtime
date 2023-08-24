@@ -9,7 +9,7 @@ use async_task::Runnable;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExecutorEvent {
+    Wake,
     PollTask(Runnable),
-    TimerAdded,
     Exit(i32),
 }

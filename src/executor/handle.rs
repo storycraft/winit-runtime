@@ -42,7 +42,7 @@ impl ExecutorHandle {
 
         self.proxy
             .lock()
-            .send_event(ExecutorEvent::TimerAdded)
+            .send_event(ExecutorEvent::Wake)
             .unwrap();
 
         fut
@@ -53,7 +53,7 @@ impl ExecutorHandle {
 
         self.proxy
             .lock()
-            .send_event(ExecutorEvent::TimerAdded)
+            .send_event(ExecutorEvent::Wake)
             .unwrap();
 
         fut

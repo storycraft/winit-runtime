@@ -48,7 +48,7 @@ impl Executor {
         control_flow: &mut ControlFlow,
     ) {
         match event {
-            Event::UserEvent(ExecutorEvent::TimerAdded) => {}
+            Event::UserEvent(ExecutorEvent::Wake) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
                 EL_TARGET.set(target, move || {
