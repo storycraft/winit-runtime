@@ -25,13 +25,13 @@ pub struct EventSource<T: ForLifetime> {
 }
 
 impl<T: ForLifetime> EventSource<T> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             list: Mutex::new(PinList::new(unsafe { Unchecked::new() })),
         }
     }
 
-    pub fn emit<'a>(&self, mut event: T::Of<'a>) {
+    pub fn emit(&self, mut event: T::Of<'_>) {
         let mut list = self.list.lock();
 
         let mut cursor = list.cursor_front_mut();
@@ -157,15 +157,18 @@ impl<F, T: ForLifetime> PinnedDrop for EventFnFuture<'_, F, T> {
     }
 }
 
+type DynClosure<'closure, T> =
+    dyn for<'a, 'b> FnMut(&'a mut <T as ForLifetime>::Of<'b>) -> Option<()> + Send + 'closure;
+
 #[derive(Debug)]
 struct ListenerItem<T: ForLifetime> {
     done: bool,
     waker: Option<Waker>,
-    closure_ptr: Unique<dyn for<'a, 'b> FnMut(&'a mut T::Of<'b>) -> Option<()> + Send>,
+    closure_ptr: Unique<DynClosure<'static, T>>,
 }
 
 impl<T: ForLifetime> ListenerItem<T> {
-    pub fn new<'a>(closure_ptr: &'a mut (dyn FnMut(&mut T::Of<'_>) -> Option<()> + Send)) -> Self
+    fn new<'a>(closure_ptr: &'a mut DynClosure<T>) -> Self
     where
         T: 'a,
     {
@@ -173,14 +176,14 @@ impl<T: ForLifetime> ListenerItem<T> {
             done: false,
             waker: None,
 
-            // Safety: See ListenerItem::poll for safety requirement
+            // SAFETY: See ListenerItem::poll for safety requirement
             closure_ptr: unsafe { mem::transmute::<_, Unique<_>>(Unique::from(closure_ptr)) },
         }
     }
 
-    pub fn update_waker(&mut self, waker: &Waker) {
+    fn update_waker(&mut self, waker: &Waker) {
         match self.waker {
-            Some(ref waker) if waker.will_wake(waker) => return,
+            Some(ref waker) if waker.will_wake(waker) => (),
 
             _ => {
                 self.waker = Some(waker.clone());
@@ -190,7 +193,7 @@ impl<T: ForLifetime> ListenerItem<T> {
 
     /// # Safety
     /// Calling this method is only safe if pointer of closure is valid
-    pub unsafe fn poll(&mut self, event: &mut T::Of<'_>) -> bool {
+    unsafe fn poll(&mut self, event: &mut T::Of<'_>) -> bool {
         if self.closure_ptr.as_mut()(event).is_some() && !self.done {
             self.done = true;
         }

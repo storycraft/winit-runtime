@@ -7,48 +7,25 @@
 use async_task::{Runnable, Task};
 use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
 use futures_lite::Future;
-use higher_kinded_types::ForLt;
 use instant::Duration;
 use parking_lot::Mutex;
-use winit::{
-    event::{DeviceEvent, DeviceId, WindowEvent},
-    event_loop::EventLoopProxy,
-    window::WindowId,
-};
+use winit::event_loop::EventLoopProxy;
 
-use crate::event::EventSource;
-
-use super::{event::ExecutorEvent, EventLoopTarget};
+use super::event::ExecutorEvent;
 
 #[derive(Debug)]
 pub struct ExecutorHandle {
     proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
 
     pub(super) timer: TimerService,
-
-    pub resumed: EventSource<ForLt!((&EventLoopTarget))>,
-    pub suspended: EventSource<ForLt!((&EventLoopTarget))>,
-
-    pub device: EventSource<ForLt!((DeviceId, DeviceEvent, &EventLoopTarget))>,
-    pub window: EventSource<ForLt!((WindowId, WindowEvent<'_>, &EventLoopTarget))>,
-
-    pub redraw_requested: EventSource<ForLt!((WindowId, &EventLoopTarget))>,
 }
 
 impl ExecutorHandle {
-    pub(crate) fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
+    pub(crate) const fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
         Self {
             proxy: Mutex::new(proxy),
 
             timer,
-
-            resumed: EventSource::new(),
-            suspended: EventSource::new(),
-
-            device: EventSource::new(),
-            window: EventSource::new(),
-
-            redraw_requested: EventSource::new(),
         }
     }
 
@@ -105,7 +82,7 @@ impl ExecutorHandle {
         task
     }
 
-    pub unsafe fn spawn_raw_unchecked<Fut>(&self, fut: Fut) -> (Runnable, Task<Fut::Output>)
+    pub(super) unsafe fn spawn_raw_unchecked<Fut>(&self, fut: Fut) -> (Runnable, Task<Fut::Output>)
     where
         Fut: Future,
     {

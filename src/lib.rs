@@ -36,25 +36,25 @@ pub async fn exit(code: i32) -> ! {
     executor_handle().exit(code).await
 }
 
-pub fn window() -> &'static EventSource<ForLt!((WindowId, WindowEvent<'_>, &EventLoopTarget))> {
-    &executor_handle().window
+macro_rules! define_event {
+    (pub $name: ident: $ty: tt) => {
+        pub fn $name() -> &'static EventSource<ForLt!($ty)> {
+            static SOURCE: EventSource<ForLt!($ty)> = EventSource::new();
+        
+            &SOURCE
+        }
+    };
 }
 
-pub fn device() -> &'static EventSource<ForLt!((DeviceId, DeviceEvent, &EventLoopTarget))> {
-    &executor_handle().device
-}
+define_event!(pub window: (WindowId, WindowEvent<'_>, &EventLoopTarget));
 
-pub fn resumed() -> &'static EventSource<ForLt!(&EventLoopTarget)> {
-    &executor_handle().resumed
-}
+define_event!(pub device: (DeviceId, DeviceEvent, &EventLoopTarget));
 
-pub fn suspended() -> &'static EventSource<ForLt!(&EventLoopTarget)> {
-    &executor_handle().suspended
-}
+define_event!(pub resumed: (&EventLoopTarget));
 
-pub fn redraw_requested() -> &'static EventSource<ForLt!((WindowId, &EventLoopTarget))> {
-    &executor_handle().redraw_requested
-}
+define_event!(pub suspended: (&EventLoopTarget));
+
+define_event!(pub redraw_requested: (WindowId, &EventLoopTarget));
 
 pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
     with_eventloop_target(move |target| builder.build(target))

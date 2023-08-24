@@ -11,7 +11,7 @@ fn main() {
     wm::run(async {
         // wait for next resume event
         let _window = resumed()
-            .once(|target| 
+            .once(|target|
                 // create window, on resume event
                 Some(Window::new(target).unwrap())
             )

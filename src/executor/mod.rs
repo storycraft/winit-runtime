@@ -17,7 +17,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
 
-use crate::timer;
+use crate::{timer, redraw_requested, device, window, resumed, suspended};
 
 use self::{event::ExecutorEvent, handle::ExecutorHandle};
 
@@ -67,7 +67,7 @@ impl Executor {
             Event::MainEventsCleared => {}
 
             Event::RedrawRequested(id) => {
-                self.handle.redraw_requested.emit((id, target));
+                redraw_requested().emit((id, target));
             }
 
             Event::RedrawEventsCleared => {
@@ -84,24 +84,23 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                self.handle.device.emit((device_id, event, target));
+                device().emit((device_id, event, target));
             }
 
             Event::WindowEvent {
                 window_id,
                 event,
             } => {
-                self.handle
-                    .window
+                window()
                     .emit((window_id, event, target));
             }
 
             Event::Resumed => {
-                self.handle.resumed.emit(target);
+                resumed().emit(target);
             }
 
             Event::Suspended => {
-                self.handle.suspended.emit(target);
+                suspended().emit(target);
             }
 
             _ => {}
