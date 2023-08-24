@@ -5,14 +5,14 @@
  */
 
 //! # wm: Async runtime over winit's eventloop
-//! 
+//!
 //! ## Features
 //! 1. Alloc free async timer
 //! 2. Zero cost event dispatching
 //! 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently
 
 use event::EventSource;
-use executor::{executor_handle, with_eventloop_target, EventLoopTarget};
+use executor::{executor_handle, with_eventloop_target};
 use futures_lite::Future;
 use higher_kinded_types::ForLt;
 use task::Task;
@@ -22,7 +22,11 @@ pub mod executor;
 pub mod timer;
 
 pub use async_task as task;
-use winit::{window::{WindowId, WindowBuilder, Window}, event::{WindowEvent, DeviceId, DeviceEvent}, error::OsError};
+use winit::{
+    error::OsError,
+    event::{DeviceEvent, DeviceId, WindowEvent},
+    window::{Window, WindowBuilder, WindowId},
+};
 
 pub fn spawn_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
@@ -40,7 +44,7 @@ macro_rules! define_event {
     (pub $name: ident: $ty: tt) => {
         pub fn $name() -> &'static EventSource<ForLt!($ty)> {
             static SOURCE: EventSource<ForLt!($ty)> = EventSource::new();
-        
+
             &SOURCE
         }
     };
