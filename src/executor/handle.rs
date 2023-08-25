@@ -8,14 +8,13 @@ use async_task::{Runnable, Task};
 use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
 use futures_lite::Future;
 use instant::Duration;
-use parking_lot::Mutex;
 use winit::event_loop::EventLoopProxy;
 
 use super::event::ExecutorEvent;
 
 #[derive(Debug)]
 pub struct ExecutorHandle {
-    proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
+    proxy: EventLoopProxy<ExecutorEvent>,
 
     pub(super) timer: TimerService,
 }
@@ -23,7 +22,7 @@ pub struct ExecutorHandle {
 impl ExecutorHandle {
     pub(crate) const fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
         Self {
-            proxy: Mutex::new(proxy),
+            proxy,
 
             timer,
         }
@@ -31,7 +30,6 @@ impl ExecutorHandle {
 
     pub async fn exit(&self, code: i32) -> ! {
         self.proxy
-            .lock()
             .send_event(ExecutorEvent::Exit(code))
             .unwrap();
         futures_lite::future::pending().await
@@ -41,7 +39,6 @@ impl ExecutorHandle {
         let fut = self.timer.delay(delay);
 
         self.proxy
-            .lock()
             .send_event(ExecutorEvent::Wake)
             .unwrap();
 
@@ -52,7 +49,6 @@ impl ExecutorHandle {
         let fut = self.timer.deadline(timestamp);
 
         self.proxy
-            .lock()
             .send_event(ExecutorEvent::Wake)
             .unwrap();
 
@@ -86,10 +82,10 @@ impl ExecutorHandle {
     where
         Fut: Future,
     {
-        let proxy = Mutex::new(self.proxy.lock().clone());
+        let proxy = self.proxy.clone();
 
         async_task::spawn_unchecked(fut, move |runnable| {
-            let _ = proxy.lock().send_event(ExecutorEvent::PollTask(runnable));
+            let _ = proxy.send_event(ExecutorEvent::PollTask(runnable));
         })
     }
 }
