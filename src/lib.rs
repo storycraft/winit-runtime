@@ -23,7 +23,7 @@ pub mod timer;
 
 pub use async_task as task;
 use winit::{
-    error::{OsError, EventLoopError},
+    error::{EventLoopError, OsError},
     event::{DeviceEvent, DeviceId, WindowEvent},
     window::{Window, WindowBuilder, WindowId},
 };
