@@ -109,7 +109,7 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let (runnable, task) = unsafe {
         handle.spawn_raw_unchecked(async move {
             main.await;
-            proxy.send_event(ExecutorEvent::Exit(0)).unwrap();
+            let _ = proxy.send_event(ExecutorEvent::Exit(0));
         })
     };
     task.detach();
