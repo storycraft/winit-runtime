@@ -5,10 +5,12 @@
  */
 
 use async_task::{Runnable, Task};
-use futures_intrusive::timer::{Timer, TimerFuture, TimerService};
+use futures_intrusive::timer::TimerFuture;
 use futures_lite::Future;
 use instant::Duration;
 use winit::event_loop::EventLoopProxy;
+
+use crate::timer::ExecutorTimer;
 
 use super::event::ExecutorEvent;
 
@@ -16,31 +18,27 @@ use super::event::ExecutorEvent;
 pub struct ExecutorHandle {
     proxy: EventLoopProxy<ExecutorEvent>,
 
-    pub(super) timer: TimerService,
+    pub(super) timer: ExecutorTimer,
 }
 
 impl ExecutorHandle {
-    pub(crate) const fn new(proxy: EventLoopProxy<ExecutorEvent>, timer: TimerService) -> Self {
+    pub(crate) fn new(proxy: EventLoopProxy<ExecutorEvent>) -> Self {
         Self {
             proxy,
 
-            timer,
+            timer: ExecutorTimer::new(),
         }
     }
 
     pub async fn exit(&self, code: i32) -> ! {
-        self.proxy
-            .send_event(ExecutorEvent::Exit(code))
-            .unwrap();
+        self.proxy.send_event(ExecutorEvent::Exit(code)).unwrap();
         futures_lite::future::pending().await
     }
 
     pub fn wait(&self, delay: Duration) -> TimerFuture {
         let fut = self.timer.delay(delay);
 
-        self.proxy
-            .send_event(ExecutorEvent::Wake)
-            .unwrap();
+        self.proxy.send_event(ExecutorEvent::Wake).unwrap();
 
         fut
     }
@@ -48,9 +46,7 @@ impl ExecutorHandle {
     pub fn wait_deadline(&self, timestamp: u64) -> TimerFuture {
         let fut = self.timer.deadline(timestamp);
 
-        self.proxy
-            .send_event(ExecutorEvent::Wake)
-            .unwrap();
+        self.proxy.send_event(ExecutorEvent::Wake).unwrap();
 
         fut
     }

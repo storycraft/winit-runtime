@@ -18,7 +18,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
 
-use crate::{device, redraw_requested, resumed, suspended, timer, window};
+use crate::{device, redraw_requested, resumed, suspended, timer::UpdateState, window};
 
 use self::{event::ExecutorEvent, handle::ExecutorHandle};
 
@@ -48,15 +48,11 @@ impl Executor {
         target: &EventLoopTarget,
         control_flow: &mut ControlFlow,
     ) {
-        EL_TARGET.set(target, move || match event {
+        EL_TARGET.set(target, move || {match event {
             Event::UserEvent(ExecutorEvent::Wake) => {}
 
             Event::UserEvent(ExecutorEvent::PollTask(runnable)) => {
                 runnable.run();
-            }
-
-            Event::NewEvents(_) => {
-                self.handle.timer.check_expirations();
             }
 
             Event::UserEvent(ExecutorEvent::Exit(code)) => {
@@ -65,19 +61,6 @@ impl Executor {
 
             Event::RedrawRequested(id) => {
                 redraw_requested().emit(id);
-            }
-
-            Event::AboutToWait => {
-                if let Some(time) = self.handle.timer.next_expiration() {
-                    let now = instant::now() as u64;
-                    if time > now {
-                        control_flow.set_wait_timeout(Duration::from_millis(time - now));
-                    } else {
-                        *control_flow = ControlFlow::Poll;
-                    }
-                } else if *control_flow != ControlFlow::Wait {
-                    *control_flow = ControlFlow::Wait;
-                }
             }
 
             Event::DeviceEvent { device_id, event } => {
@@ -96,8 +79,16 @@ impl Executor {
                 suspended().emit(());
             }
 
+            Event::AboutToWait => {
+                if let UpdateState::WaitTimeout(next_delay) = self.handle.timer.update_next() {
+                    control_flow.set_wait_timeout(Duration::from_millis(next_delay.get()));
+                } else if *control_flow == ControlFlow::Poll {
+                    *control_flow = ControlFlow::Wait;
+                }
+            }
+
             _ => {}
-        });
+        }});
     }
 }
 
@@ -106,10 +97,7 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
 
     let proxy = event_loop.create_proxy();
 
-    if HANDLE
-        .set(ExecutorHandle::new(proxy.clone(), timer::create_service()))
-        .is_err()
-    {
+    if HANDLE.set(ExecutorHandle::new(proxy.clone())).is_err() {
         panic!("This cannot be happen");
     }
 
@@ -117,7 +105,7 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
 
     let mut executor = Executor { handle };
 
-    // SAFETY: EventLoop created on same function, closure does not need to be Send
+    // SAFETY: EventLoop created on same function, closure does not need to be Send and task and references to Future outlive event loop
     let (runnable, task) = unsafe {
         handle.spawn_raw_unchecked(async move {
             main.await;
