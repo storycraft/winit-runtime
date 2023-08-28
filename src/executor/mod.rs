@@ -117,7 +117,5 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     EL_TARGET.set(&event_loop, move || runnable.run());
 
     event_loop
-        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow))?;
-
-    Ok(())
+        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow))
 }
