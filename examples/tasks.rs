@@ -30,5 +30,5 @@ fn main() {
 
         task1.await;
         task2.await;
-    })
+    }).unwrap();
 }

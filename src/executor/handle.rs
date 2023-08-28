@@ -78,6 +78,8 @@ impl ExecutorHandle {
         task
     }
 
+    /// # Safety
+    /// See [`ExecutorHandle::spawn_unchecked`]
     pub(super) unsafe fn spawn_raw_unchecked<Fut>(&self, fut: Fut) -> (Runnable, Task<Fut::Output>)
     where
         Fut: Future,

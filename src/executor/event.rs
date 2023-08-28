@@ -11,5 +11,6 @@ use async_task::Runnable;
 pub enum ExecutorEvent {
     Wake,
     PollTask(Runnable),
+    PollMain,
     Exit(i32),
 }

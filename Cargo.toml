@@ -8,8 +8,8 @@ authors = ["storycraft <storycraft@pancake.sh>"]
 repository = "https://github.com/storycraft/wm"
 
 [dependencies]
+winit = "0.29.1-beta"
 parking_lot = "0.12.1"
-winit = "0.28.6"
 async-task = "4.4.0"
 futures-lite = "1.13.0"
 scoped-tls-hkt = "0.1.2"

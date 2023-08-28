@@ -13,6 +13,7 @@ use futures_lite::Future;
 use instant::Duration;
 use scoped_tls_hkt::scoped_thread_local;
 use winit::{
+    error::EventLoopError,
     event::Event,
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
@@ -62,13 +63,11 @@ impl Executor {
                 *control_flow = ControlFlow::ExitWithCode(code);
             }
 
-            Event::MainEventsCleared => {}
-
             Event::RedrawRequested(id) => {
                 redraw_requested().emit(id);
             }
 
-            Event::RedrawEventsCleared => {
+            Event::AboutToWait => {
                 if let Some(time) = self.handle.timer.next_expiration() {
                     let now = instant::now() as u64;
                     if time > now {
@@ -102,8 +101,8 @@ impl Executor {
     }
 }
 
-pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
-    let event_loop = EventLoopBuilder::with_user_event().build();
+pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
+    let event_loop = EventLoopBuilder::with_user_event().build()?;
 
     let proxy = event_loop.create_proxy();
 
@@ -130,5 +129,7 @@ pub fn run(main: impl Future<Output = ()> + 'static) -> ! {
     EL_TARGET.set(&event_loop, move || runnable.run());
 
     event_loop
-        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow));
+        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow))?;
+
+    Ok(())
 }
