@@ -46,7 +46,7 @@ impl ExecutorTimer {
 
         let now = instant::now() as u64;
 
-        return if next <= now {
+        if next <= now {
             self.service.check_expirations();
             self.next_expiration.store(
                 self.service.next_expiration().unwrap_or(0),
@@ -56,7 +56,7 @@ impl ExecutorTimer {
             UpdateState::Triggered
         } else {
             UpdateState::WaitTimeout(NonZeroU64::new(next - now).unwrap())
-        };
+        }
     }
 
     pub fn delay(&self, delay: Duration) -> TimerFuture {
