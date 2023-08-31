@@ -36,6 +36,14 @@ where
     executor_handle().spawn(fut)
 }
 
+pub fn spawn_local_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
+where
+    Fut: Future + 'static,
+    Fut::Output: Send,
+{
+    executor_handle().spawn_local(fut)
+}
+
 pub async fn exit(code: i32) -> ! {
     executor_handle().exit(code).await
 }

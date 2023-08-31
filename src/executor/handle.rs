@@ -4,11 +4,13 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
+use std::thread::{ThreadId, self};
+
 use async_task::{Runnable, Task};
 use futures_intrusive::timer::TimerFuture;
 use futures_lite::Future;
 use instant::Duration;
-use winit::event_loop::EventLoopProxy;
+use winit::event_loop::{EventLoopProxy, EventLoop};
 
 use crate::timer::ExecutorTimer;
 
@@ -16,15 +18,17 @@ use super::event::ExecutorEvent;
 
 #[derive(Debug)]
 pub struct ExecutorHandle {
+    thread_id: ThreadId,
     proxy: EventLoopProxy<ExecutorEvent>,
 
     pub(super) timer: ExecutorTimer,
 }
 
 impl ExecutorHandle {
-    pub(crate) fn new(proxy: EventLoopProxy<ExecutorEvent>) -> Self {
+    pub(crate) fn new(event_loop: &EventLoop<ExecutorEvent>) -> Self {
         Self {
-            proxy,
+            thread_id: thread::current().id(),
+            proxy: event_loop.create_proxy(),
 
             timer: ExecutorTimer::new(),
         }
@@ -57,6 +61,19 @@ impl ExecutorHandle {
         Fut::Output: Send + 'static,
     {
         // SAFETY: Future and its output is both Send and 'static
+        unsafe { self.spawn_unchecked(fut) }
+    }
+
+    pub fn spawn_local<Fut>(&self, fut: Fut) -> Task<Fut::Output>
+    where
+        Fut: Future + 'static,
+        Fut::Output: Send + 'static,
+    {
+        if thread::current().id() != self.thread_id {
+            panic!("Cannot call spawn_local outside of event loop thread");
+        }
+
+        // SAFETY: Future runs on same thread nd its output is both Send and 'static
         unsafe { self.spawn_unchecked(fut) }
     }
 

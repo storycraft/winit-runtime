@@ -95,9 +95,7 @@ impl Executor {
 pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let event_loop = EventLoopBuilder::with_user_event().build()?;
 
-    let proxy = event_loop.create_proxy();
-
-    if HANDLE.set(ExecutorHandle::new(proxy.clone())).is_err() {
+    if HANDLE.set(ExecutorHandle::new(&event_loop)).is_err() {
         panic!("This cannot be happen");
     }
 
@@ -105,12 +103,16 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
 
     let mut executor = Executor { handle };
 
-    // SAFETY: EventLoop created on same function, closure does not need to be Send and task and references to Future outlive event loop
-    let (runnable, task) = unsafe {
-        handle.spawn_raw_unchecked(async move {
-            main.await;
-            let _ = proxy.send_event(ExecutorEvent::Exit(0));
-        })
+    let (runnable, task) = {
+        let proxy = event_loop.create_proxy();
+
+        // SAFETY: EventLoop created on same function, closure does not need to be Send and task and references to Future outlive event loop
+        unsafe {
+            handle.spawn_raw_unchecked(async move {
+                main.await;
+                let _ = proxy.send_event(ExecutorEvent::Exit(0));
+            })
+        }
     };
     task.detach();
 
