@@ -39,7 +39,7 @@ where
 pub fn spawn_local_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
     Fut: Future + 'static,
-    Fut::Output: Send,
+    Fut::Output: 'static,
 {
     executor_handle().spawn_local(fut)
 }

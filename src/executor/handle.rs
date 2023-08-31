@@ -67,7 +67,7 @@ impl ExecutorHandle {
     pub fn spawn_local<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
         Fut: Future + 'static,
-        Fut::Output: Send + 'static,
+        Fut::Output: 'static,
     {
         if thread::current().id() != self.thread_id {
             panic!("Cannot call spawn_local outside of event loop thread");
