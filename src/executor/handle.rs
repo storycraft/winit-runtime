@@ -73,7 +73,7 @@ impl ExecutorHandle {
             panic!("Cannot call spawn_local outside of event loop thread");
         }
 
-        // SAFETY: Future runs on same thread nd its output is both Send and 'static
+        // SAFETY: Future runs on same thread and its output is 'static
         unsafe { self.spawn_unchecked(fut) }
     }
 
