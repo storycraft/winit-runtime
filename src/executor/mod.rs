@@ -9,6 +9,7 @@ pub mod handle;
 
 use std::sync::OnceLock;
 
+use async_task::Task;
 use futures_lite::Future;
 use instant::Duration;
 use scoped_tls_hkt::scoped_thread_local;
@@ -38,6 +39,7 @@ pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
 
 #[derive(Debug)]
 struct Executor {
+    _main: Task<()>,
     handle: &'static ExecutorHandle,
 }
 
@@ -95,13 +97,13 @@ impl Executor {
 pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let event_loop = EventLoopBuilder::with_user_event().build()?;
 
-    if HANDLE.set(ExecutorHandle::new(&event_loop)).is_err() {
-        panic!("This cannot be happen");
-    }
+    let handle = {
+        if HANDLE.set(ExecutorHandle::new(&event_loop)).is_err() {
+            panic!("This cannot be happen");
+        }
 
-    let handle = HANDLE.get().unwrap();
-
-    let mut executor = Executor { handle };
+        HANDLE.get().unwrap()
+    };
 
     let (runnable, task) = {
         let proxy = event_loop.create_proxy();
@@ -114,7 +116,11 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
             })
         }
     };
-    task.detach();
+
+    let mut executor = Executor {
+        _main: task,
+        handle,
+    };
 
     EL_TARGET.set(&event_loop, move || runnable.run());
 
