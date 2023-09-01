@@ -1,11 +1,13 @@
 [package]
 name = "wm"
-description = "Async winit wrapper"
-version = "0.1.0"
+description = "Async winit runtime"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["storycraft <storycraft@pancake.sh>"]
 repository = "https://github.com/storycraft/wm"
+categories = ["windowing"]
+
 
 [dependencies]
 winit = "0.29.1-beta"
