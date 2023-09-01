@@ -80,6 +80,6 @@ pub fn create_window() -> Result<Window, OsError> {
 }
 
 #[inline(always)]
-pub fn run(fut: impl Future<Output = ()>) -> Result<(), EventLoopError> {
-    executor::run(fut)
+pub fn block_on<F: Future>(fut: F) -> Result<Option<F::Output>, EventLoopError> {
+    executor::block_on(fut)
 }
