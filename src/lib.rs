@@ -11,10 +11,8 @@
 //! 2. Zero cost event dispatching
 //! 3. Spawn ui tasks anywhere. Tasks run in eventloop's thread concurrently
 
-use event::EventSource;
 use executor::{executor_handle, with_eventloop_target};
 use futures_lite::Future;
-use higher_kinded_types::ForLt;
 use task::Task;
 
 pub mod event;
@@ -28,6 +26,7 @@ use winit::{
     window::{Window, WindowBuilder, WindowId},
 };
 
+#[inline]
 pub fn spawn_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
     Fut: Future + Send + 'static,
@@ -36,6 +35,7 @@ where
     executor_handle().spawn(fut)
 }
 
+#[inline]
 pub fn spawn_local_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
     Fut: Future + 'static,
@@ -44,14 +44,16 @@ where
     executor_handle().spawn_local(fut)
 }
 
+#[inline]
 pub async fn exit(code: i32) -> ! {
     executor_handle().exit(code).await
 }
 
 macro_rules! define_event {
     (pub $name: ident: $ty: tt) => {
-        pub fn $name() -> &'static EventSource<ForLt!($ty)> {
-            static SOURCE: EventSource<ForLt!($ty)> = EventSource::new();
+        pub fn $name() -> &'static event::EventSource<higher_kinded_types::ForLt!($ty)> {
+            static SOURCE: event::EventSource<higher_kinded_types::ForLt!($ty)> =
+                event::EventSource::new();
 
             &SOURCE
         }
