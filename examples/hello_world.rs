@@ -6,7 +6,7 @@
 
 fn main() {
     // Spawn winit eventloop and run main task
-    wm::block_on(async {
+    wm::run(async {
         println!("Hello async winit world!");
     })
     .unwrap();

@@ -8,7 +8,7 @@ use winit::event::WindowEvent;
 use wm::{create_window, resumed, window};
 
 fn main() {
-    wm::block_on(async {
+    wm::run(async {
         // wait for next resume event
         let _window = resumed()
             .once(|_|

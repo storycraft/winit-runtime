@@ -8,7 +8,7 @@ use instant::Duration;
 use wm::{spawn_ui_task, timer::wait};
 
 fn main() {
-    wm::block_on(async {
+    wm::run(async {
         let task1 = spawn_ui_task(async move {
             println!("Sub task1 started");
 

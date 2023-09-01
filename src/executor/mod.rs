@@ -92,43 +92,32 @@ impl Executor {
     }
 }
 
-/// Create [`EventLoop`](winit::event_loop::EventLoop) and wait for given future to finish
-///
-/// See also `EventLoop::run`
-pub fn block_on<F: Future>(main: F) -> Result<Option<F::Output>, EventLoopError> {
+pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let event_loop = EventLoopBuilder::with_user_event().build()?;
 
-    let handle = {
-        if HANDLE.set(ExecutorHandle::new(&event_loop)).is_err() {
-            panic!("This cannot be happen");
-        }
+    if HANDLE.set(ExecutorHandle::new(&event_loop)).is_err() {
+        panic!("This cannot be happen");
+    }
 
-        HANDLE.get().unwrap()
-    };
+    let handle = HANDLE.get().unwrap();
 
-    let mut output = None;
+    let mut executor = Executor { handle };
 
     let (runnable, task) = {
         let proxy = event_loop.create_proxy();
 
         // SAFETY: EventLoop created on same function, closure does not need to be Send and task and references to Future outlive event loop
         unsafe {
-            handle.spawn_raw_unchecked(async {
-                output = Some(main.await);
+            handle.spawn_raw_unchecked(async move {
+                main.await;
                 let _ = proxy.send_event(ExecutorEvent::Exit(0));
             })
         }
     };
-
-    let mut executor = Executor { handle };
+    task.detach();
 
     EL_TARGET.set(&event_loop, move || runnable.run());
 
-    event_loop.run(move |event, target, control_flow| {
-        let _task = &task;
-
-        executor.on_event(event, target, control_flow)
-    })?;
-
-    Ok(output)
+    event_loop
+        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow))
 }

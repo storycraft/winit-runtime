@@ -11,11 +11,10 @@ use std::{
 
 use futures_intrusive::timer::{Clock, Timer, TimerService};
 
+pub use futures_intrusive::timer::TimerFuture;
 use instant::Duration;
 
 use crate::executor::executor_handle;
-
-pub use futures_intrusive::timer::TimerFuture;
 
 #[derive(Debug)]
 pub(crate) struct ExecutorTimer {
