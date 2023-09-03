@@ -19,7 +19,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
 };
 
-use crate::{device, redraw_requested, resumed, suspended, timer::UpdateState, window};
+use crate::{device, resumed, suspended, timer::UpdateState, window};
 
 use self::{event::ExecutorEvent, handle::ExecutorHandle};
 
@@ -59,10 +59,6 @@ impl Executor {
 
             Event::UserEvent(ExecutorEvent::Exit(code)) => {
                 *control_flow = ControlFlow::ExitWithCode(code);
-            }
-
-            Event::RedrawRequested(id) => {
-                redraw_requested().emit(id);
             }
 
             Event::DeviceEvent { device_id, event } => {

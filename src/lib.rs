@@ -68,8 +68,6 @@ define_event!(pub resumed: ());
 
 define_event!(pub suspended: ());
 
-define_event!(pub redraw_requested: WindowId);
-
 pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
     with_eventloop_target(move |target| builder.build(target))
 }

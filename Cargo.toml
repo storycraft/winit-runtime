@@ -10,7 +10,7 @@ categories = ["windowing"]
 
 
 [dependencies]
-winit = "0.29.1-beta"
+winit = { git = "https://github.com/rust-windowing/winit.git" }
 parking_lot = "0.12.1"
 async-task = "4.4.0"
 futures-lite = "1.13.0"
