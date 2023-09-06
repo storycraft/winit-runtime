@@ -20,7 +20,7 @@ pub mod timer;
 
 pub use async_task as task;
 use winit::{
-    error::{EventLoopError, OsError},
+    error::OsError,
     event::{DeviceEvent, DeviceId, WindowEvent},
     window::{Window, WindowBuilder, WindowId},
 };
@@ -75,7 +75,4 @@ pub fn create_window() -> Result<Window, OsError> {
     build_window(WindowBuilder::new())
 }
 
-#[inline(always)]
-pub fn run(fut: impl Future<Output = ()>) -> Result<(), EventLoopError> {
-    executor::run(fut)
-}
+pub use executor::run;
