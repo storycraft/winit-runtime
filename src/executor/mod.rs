@@ -4,6 +4,8 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
+//! Implementation of winit Executor
+
 pub mod event;
 pub mod handle;
 
@@ -28,12 +30,18 @@ pub type EventLoopTarget = EventLoopWindowTarget<ExecutorEvent>;
 
 static HANDLE: OnceLock<ExecutorHandle> = OnceLock::new();
 
+/// Get current [`ExecutorHandle`]
+/// 
+/// There can be only one [`ExecutorHandle`] and will panic if executor did not start.
 pub fn executor_handle() -> &'static ExecutorHandle {
     HANDLE.get().expect("Executor is not started")
 }
 
 scoped_thread_local!(static EL_TARGET: EventLoopTarget);
 
+/// Run closure using current [`EventLoopTarget`]
+/// 
+/// Will panic if it called on outside of runtime thread
 pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
     EL_TARGET.with(func)
 }
@@ -91,6 +99,7 @@ impl Executor {
     }
 }
 
+/// Entrypoint for runtime
 pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let event_loop = EventLoopBuilder::with_user_event().build()?;
 

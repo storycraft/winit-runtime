@@ -87,10 +87,12 @@ pub(crate) enum UpdateState {
     WaitTimeout(NonZeroU64),
 }
 
+/// Create Future waiting for given duration
 pub fn wait(delay: Duration) -> TimerFuture<'static> {
     executor_handle().wait(delay)
 }
 
+/// Create Future waiting for given timestamp
 pub fn wait_deadline(timestamp: u64) -> TimerFuture<'static> {
     executor_handle().wait_deadline(timestamp)
 }

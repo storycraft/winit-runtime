@@ -66,11 +66,17 @@ define_event!(pub resumed: ());
 
 define_event!(pub suspended: ());
 
+/// Create new window using given [`WindowBuilder`]
+/// 
+/// also see [`with_eventloop_target`]
 pub fn build_window(builder: WindowBuilder) -> Result<Window, OsError> {
     with_eventloop_target(move |target| builder.build(target))
 }
 
 #[inline]
+/// Create new window with default configuration
+/// 
+/// This function shortcut for [`build_window(WindowBuilder::new())`]
 pub fn create_window() -> Result<Window, OsError> {
     build_window(WindowBuilder::new())
 }

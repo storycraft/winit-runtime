@@ -16,6 +16,7 @@ use crate::timer::ExecutorTimer;
 
 use super::event::ExecutorEvent;
 
+/// Handle task spawning and timer
 #[derive(Debug)]
 pub struct ExecutorHandle {
     thread_id: ThreadId,
@@ -34,11 +35,13 @@ impl ExecutorHandle {
         }
     }
 
+    /// Exit event loop with exit code
     pub async fn exit(&self, code: i32) -> ! {
         self.proxy.send_event(ExecutorEvent::Exit(code)).unwrap();
         futures_lite::future::pending().await
     }
 
+    /// Create Future waiting for given duration.
     pub fn wait(&self, delay: Duration) -> TimerFuture {
         let fut = self.timer.delay(delay);
 
@@ -47,6 +50,7 @@ impl ExecutorHandle {
         fut
     }
 
+    /// Create Future waiting for given timestamp
     pub fn wait_deadline(&self, timestamp: u64) -> TimerFuture {
         let fut = self.timer.deadline(timestamp);
 
@@ -55,6 +59,9 @@ impl ExecutorHandle {
         fut
     }
 
+    /// Spawn a new task, running on runtime thread
+    /// 
+    /// Because it can be called on outside of runtime thread, the Future and its output must be [`Send`]
     pub fn spawn<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
         Fut: Future + Send + 'static,
@@ -64,6 +71,10 @@ impl ExecutorHandle {
         unsafe { self.spawn_unchecked(fut) }
     }
 
+    /// Spawn and run new task, on runtime thread.
+    /// 
+    /// Unlike `ExecutorHandle::spawn` this method check if this method called on runtime's thread and will panic if it didn't.
+    /// Therefore the Future and its output does not need to be [`Send`]
     pub fn spawn_local<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
         Fut: Future + 'static,
@@ -77,6 +88,8 @@ impl ExecutorHandle {
         unsafe { self.spawn_unchecked(fut) }
     }
 
+    /// Spawn and run new task, without checking Future and its output's bound.
+    /// 
     /// # Safety
     /// If [`Future`] and its output is
     /// 1. not [`Send`]: Must be called on main thread.
