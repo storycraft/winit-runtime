@@ -8,6 +8,7 @@ authors = ["storycraft <storycraft@pancake.sh>"]
 repository = "https://github.com/storycraft/winit-runtime"
 keywords = ["windowing", "winit", "async", "runtime"]
 categories = ["asynchronous"]
+rust-version = "1.72.0"
 
 [dependencies]
 winit = { git = "https://github.com/rust-windowing/winit.git" }
