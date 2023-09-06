@@ -1,7 +1,7 @@
-# wm
-> Async runtime over winit's eventloop
+# Winit Runtime
+> Async runtime built on winit's eventloop
 
-Experimental project for integrating winit's event loop to Rust's async ecosystem
+Integrates winit event loop into Rust's async ecosystem
 
 ## Features
 1. Alloc free async timer.
