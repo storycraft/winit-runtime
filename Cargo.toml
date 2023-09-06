@@ -1,11 +1,11 @@
 [package]
-name = "wm"
+name = "winit-runtime"
 description = "Async winit runtime"
-version = "0.2.1"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["storycraft <storycraft@pancake.sh>"]
-repository = "https://github.com/storycraft/wm"
+repository = "https://github.com/storycraft/winit-runtime"
 keywords = ["windowing", "winit", "async", "runtime"]
 categories = ["asynchronous"]
 

@@ -5,10 +5,10 @@
  */
 
 use winit::event::WindowEvent;
-use wm::{create_window, resumed, window};
+use winit_runtime::{create_window, resumed, window};
 
 fn main() {
-    wm::run(async {
+    winit_runtime::run(async {
         // wait for next resume event
         let _window = resumed()
             .once(|_|

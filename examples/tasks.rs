@@ -5,10 +5,10 @@
  */
 
 use instant::Duration;
-use wm::{spawn_ui_task, timer::wait};
+use winit_runtime::{spawn_ui_task, timer::wait};
 
 fn main() {
-    wm::run(async {
+    winit_runtime::run(async {
         let task1 = spawn_ui_task(async move {
             println!("Sub task1 started");
 
