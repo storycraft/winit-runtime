@@ -10,6 +10,7 @@ pub mod handle;
 use std::sync::OnceLock;
 
 use async_task::Task;
+use event_source::emit;
 use futures_lite::Future;
 use instant::Duration;
 use scoped_tls_hkt::scoped_thread_local;
@@ -62,19 +63,19 @@ impl Executor {
             }
 
             Event::DeviceEvent { device_id, event } => {
-                device().emit((device_id, event));
+                emit!(device(), (device_id, &event));
             }
 
-            Event::WindowEvent { window_id, event } => {
-                window().emit((window_id, event));
+            Event::WindowEvent { window_id, mut event } => {
+                emit!(window(), (window_id, &mut event));
             }
 
             Event::Resumed => {
-                resumed().emit(());
+                emit!(resumed(), ());
             }
 
             Event::Suspended => {
-                suspended().emit(());
+                emit!(suspended(), ());
             }
 
             Event::AboutToWait => {

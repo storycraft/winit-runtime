@@ -15,7 +15,6 @@ use executor::{executor_handle, with_eventloop_target};
 use futures_lite::Future;
 use task::Task;
 
-pub mod event;
 pub mod executor;
 pub mod timer;
 
@@ -50,19 +49,18 @@ pub async fn exit(code: i32) -> ! {
 }
 
 macro_rules! define_event {
-    (pub $name: ident: $ty: tt) => {
-        pub fn $name() -> &'static event::EventSource<higher_kinded_types::ForLt!($ty)> {
-            static SOURCE: event::EventSource<higher_kinded_types::ForLt!($ty)> =
-                event::EventSource::new();
+    (pub $name: ident: $($ty: tt)*) => {
+        pub fn $name() -> &'static event_source::EventSource!($($ty)*) {
+            static SOURCE: event_source::EventSource!($($ty)*) = event_source::EventSource::new();
 
             &SOURCE
         }
     };
 }
 
-define_event!(pub window: (WindowId, WindowEvent));
+define_event!(pub window: (WindowId, &mut WindowEvent));
 
-define_event!(pub device: (DeviceId, DeviceEvent));
+define_event!(pub device: (DeviceId, &DeviceEvent));
 
 define_event!(pub resumed: ());
 

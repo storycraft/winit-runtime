@@ -15,12 +15,9 @@ parking_lot = "0.12.1"
 async-task = "4.4.0"
 futures-lite = "1.13.0"
 scoped-tls-hkt = "0.1.2"
-pin-project = "1.1.3"
 futures-intrusive = "0.5.0"
 instant = "0.1.12"
-pin-list = "0.1.0"
-higher-kinded-types = "0.1.1"
-unique = "0.9.1"
+event-source = "0.1.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
