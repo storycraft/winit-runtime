@@ -18,7 +18,7 @@ futures-lite = "1.13.0"
 scoped-tls-hkt = "0.1.2"
 futures-intrusive = "0.5.0"
 instant = "0.1.12"
-event-source = "0.1.0"
+event-source = "0.2.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
