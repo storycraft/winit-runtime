@@ -25,6 +25,9 @@ use winit::{
     window::{Window, WindowBuilder, WindowId},
 };
 
+/// Spawn and run new task, running on runtime thread
+/// 
+/// See [`ExecutorHandle::spawn`]
 #[inline]
 pub fn spawn_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
@@ -34,6 +37,9 @@ where
     executor_handle().spawn(fut)
 }
 
+/// Spawn and run new task, on runtime thread
+/// 
+/// See [`ExecutorHandle::spawn_local`]
 #[inline]
 pub fn spawn_local_ui_task<Fut>(fut: Fut) -> Task<Fut::Output>
 where
