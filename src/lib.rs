@@ -49,6 +49,7 @@ where
     executor_handle().spawn_local(fut)
 }
 
+/// Exit event loop with exit code
 #[inline]
 pub async fn exit(code: i32) -> ! {
     executor_handle().exit(code).await
