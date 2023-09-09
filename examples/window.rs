@@ -11,13 +11,13 @@ fn main() {
     winit_runtime::run(async {
         // wait for next resume event
         let _window = resumed()
-            .once(|_|
+            .once(|_, _|
                 // create window, on resume event
                 Some(create_window().unwrap()))
             .await;
 
         window()
-            .once(|(_, event)| {
+            .once(|(_, event), _| {
                 if let WindowEvent::CloseRequested = event {
                     Some(())
                 } else {
