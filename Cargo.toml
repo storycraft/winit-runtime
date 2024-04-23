@@ -1,7 +1,7 @@
 [package]
 name = "winit-runtime"
 description = "Async winit runtime"
-version = "0.2.0-beta"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["storycraft <storycraft@pancake.sh>"]
@@ -11,10 +11,10 @@ categories = ["asynchronous"]
 rust-version = "1.72.0"
 
 [dependencies]
-winit = "0.29.1-beta"
+winit = "0.29.15"
 parking_lot = "0.12.1"
 async-task = "4.4.0"
-futures-lite = "1.13.0"
+futures-lite = "2.3.0"
 scoped-tls-hkt = "0.1.2"
 futures-intrusive = "0.5.0"
 instant = "0.1.12"

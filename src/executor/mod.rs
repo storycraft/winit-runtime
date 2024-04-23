@@ -31,7 +31,7 @@ pub type EventLoopTarget = EventLoopWindowTarget<ExecutorEvent>;
 static HANDLE: OnceLock<ExecutorHandle> = OnceLock::new();
 
 /// Get current [`ExecutorHandle`]
-/// 
+///
 /// There can be only one [`ExecutorHandle`] and will panic if executor did not start.
 pub fn executor_handle() -> &'static ExecutorHandle {
     HANDLE.get().expect("Executor is not started")
@@ -40,7 +40,7 @@ pub fn executor_handle() -> &'static ExecutorHandle {
 scoped_thread_local!(static EL_TARGET: EventLoopTarget);
 
 /// Run closure using current [`EventLoopTarget`]
-/// 
+///
 /// Will panic if it called on outside of runtime thread
 pub fn with_eventloop_target<R>(func: impl FnOnce(&EventLoopTarget) -> R) -> R {
     EL_TARGET.with(func)
@@ -53,12 +53,7 @@ struct Executor {
 }
 
 impl Executor {
-    fn on_event(
-        &mut self,
-        event: Event<ExecutorEvent>,
-        target: &EventLoopTarget,
-        control_flow: &mut ControlFlow,
-    ) {
+    fn on_event(&mut self, event: Event<ExecutorEvent>, target: &EventLoopTarget) {
         EL_TARGET.set(target, move || match event {
             Event::UserEvent(ExecutorEvent::Wake) => {}
 
@@ -66,15 +61,16 @@ impl Executor {
                 runnable.run();
             }
 
-            Event::UserEvent(ExecutorEvent::Exit(code)) => {
-                *control_flow = ControlFlow::ExitWithCode(code);
-            }
+            Event::UserEvent(ExecutorEvent::Exit) => target.exit(),
 
             Event::DeviceEvent { device_id, event } => {
                 emit!(device(), (device_id, &event));
             }
 
-            Event::WindowEvent { window_id, mut event } => {
+            Event::WindowEvent {
+                window_id,
+                mut event,
+            } => {
                 emit!(window(), (window_id, &mut event));
             }
 
@@ -88,9 +84,11 @@ impl Executor {
 
             Event::AboutToWait => {
                 if let UpdateState::WaitTimeout(next_delay) = self.handle.timer.update_next() {
-                    control_flow.set_wait_timeout(Duration::from_millis(next_delay.get()));
-                } else if *control_flow == ControlFlow::Poll {
-                    *control_flow = ControlFlow::Wait;
+                    target.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(
+                        next_delay.get(),
+                    )));
+                } else if target.control_flow() == ControlFlow::Poll {
+                    target.set_control_flow(ControlFlow::Wait);
                 }
             }
 
@@ -114,13 +112,13 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
     let (runnable, task) = {
         let proxy = event_loop.create_proxy();
 
+        let main = async move {
+            main.await;
+            let _ = proxy.send_event(ExecutorEvent::Exit);
+        };
+
         // SAFETY: EventLoop created on same function, closure does not need to be Send and task and references to Future outlive event loop
-        unsafe {
-            handle.spawn_raw_unchecked(async move {
-                main.await;
-                let _ = proxy.send_event(ExecutorEvent::Exit(0));
-            })
-        }
+        unsafe { handle.spawn_raw_unchecked(main) }
     };
 
     let mut executor = Executor {
@@ -130,6 +128,5 @@ pub fn run(main: impl Future<Output = ()>) -> Result<(), EventLoopError> {
 
     EL_TARGET.set(&event_loop, move || runnable.run());
 
-    event_loop
-        .run(move |event, target, control_flow| executor.on_event(event, target, control_flow))
+    event_loop.run(move |event, target| executor.on_event(event, target))
 }

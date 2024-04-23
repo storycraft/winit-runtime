@@ -4,13 +4,14 @@
  * Copyright (c) storycraft. Licensed under the MIT Licence.
  */
 
-use std::thread::{ThreadId, self};
+use std::thread::{self, ThreadId};
 
 use async_task::{Runnable, Task};
 use futures_intrusive::timer::TimerFuture;
 use futures_lite::Future;
 use instant::Duration;
-use winit::event_loop::{EventLoopProxy, EventLoop};
+use parking_lot::Mutex;
+use winit::event_loop::{EventLoop, EventLoopProxy};
 
 use crate::timer::ExecutorTimer;
 
@@ -20,7 +21,7 @@ use super::event::ExecutorEvent;
 #[derive(Debug)]
 pub struct ExecutorHandle {
     thread_id: ThreadId,
-    proxy: EventLoopProxy<ExecutorEvent>,
+    proxy: Mutex<EventLoopProxy<ExecutorEvent>>,
 
     pub(super) timer: ExecutorTimer,
 }
@@ -29,15 +30,15 @@ impl ExecutorHandle {
     pub(crate) fn new(event_loop: &EventLoop<ExecutorEvent>) -> Self {
         Self {
             thread_id: thread::current().id(),
-            proxy: event_loop.create_proxy(),
+            proxy: Mutex::new(event_loop.create_proxy()),
 
             timer: ExecutorTimer::new(),
         }
     }
 
     /// Exit event loop with exit code
-    pub async fn exit(&self, code: i32) -> ! {
-        self.proxy.send_event(ExecutorEvent::Exit(code)).unwrap();
+    pub async fn exit(&self) -> ! {
+        self.proxy.lock().send_event(ExecutorEvent::Exit).unwrap();
         futures_lite::future::pending().await
     }
 
@@ -45,7 +46,7 @@ impl ExecutorHandle {
     pub fn wait(&self, delay: Duration) -> TimerFuture {
         let fut = self.timer.delay(delay);
 
-        self.proxy.send_event(ExecutorEvent::Wake).unwrap();
+        self.proxy.lock().send_event(ExecutorEvent::Wake).unwrap();
 
         fut
     }
@@ -54,13 +55,13 @@ impl ExecutorHandle {
     pub fn wait_deadline(&self, timestamp: u64) -> TimerFuture {
         let fut = self.timer.deadline(timestamp);
 
-        self.proxy.send_event(ExecutorEvent::Wake).unwrap();
+        self.proxy.lock().send_event(ExecutorEvent::Wake).unwrap();
 
         fut
     }
 
     /// Spawn a new task, running on runtime thread
-    /// 
+    ///
     /// Because it can be called on outside of runtime thread, the Future and its output must be [`Send`]
     pub fn spawn<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
@@ -72,7 +73,7 @@ impl ExecutorHandle {
     }
 
     /// Spawn and run new task, on runtime thread.
-    /// 
+    ///
     /// Unlike `ExecutorHandle::spawn` this method check if this method called on runtime's thread and will panic if it didn't.
     /// Therefore the Future and its output does not need to be [`Send`]
     pub fn spawn_local<Fut>(&self, fut: Fut) -> Task<Fut::Output>
@@ -89,7 +90,7 @@ impl ExecutorHandle {
     }
 
     /// Spawn and run new task, without checking Future and its output's bound.
-    /// 
+    ///
     /// # Safety
     /// If [`Future`] and its output is
     /// 1. not [`Send`]: Must be called on main thread.
@@ -110,7 +111,7 @@ impl ExecutorHandle {
     where
         Fut: Future,
     {
-        let proxy = self.proxy.clone();
+        let proxy = self.proxy.lock().clone();
 
         async_task::spawn_unchecked(fut, move |runnable| {
             let _ = proxy.send_event(ExecutorEvent::PollTask(runnable));

@@ -51,8 +51,8 @@ where
 
 /// Exit event loop with exit code
 #[inline]
-pub async fn exit(code: i32) -> ! {
-    executor_handle().exit(code).await
+pub async fn exit() -> ! {
+    executor_handle().exit().await
 }
 
 macro_rules! define_event {
